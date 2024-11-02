@@ -37,30 +37,26 @@ all you gotta do is put this in the top of your code
 
 to build, open the terminal and run this
 
-### MACOS / LINUX
-
-```
-sh run.sh
-```
-
-with arguments
--metal   OR  -opengl
-and then
--mac  OR  -linux
-
-example:
+### MACOS
 
 ```
 sh run.sh -metal -mac
 ```
-or
+OR
+```
+sh run.sh -opengl -mac
+```
+
+### LINUX
+
 ```
 sh run.sh -opengl -linux
 ```
 
 **NOTE: metal is not compatible with linux or windows**
+
 ### WINDOWS
 
-haven't gotten it to work yet ):
-
-and i thought developing for mac was hard
+```
+run.bat
+```
