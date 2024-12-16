@@ -1,6 +1,6 @@
 #include "opengltexture.h"
 #define STB_IMAGE_IMPLEMENTATION
-#include "lib/stb_image.h"
+#include "../lib/stb_image.h"
 
 OpenGLTexture::OpenGLTexture(const char* filepath) {
     stbi_set_flip_vertically_on_load(1);

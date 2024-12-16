@@ -2,11 +2,11 @@
 #define OPENGL_H
 
 #include <iostream>
-#include "lib/glm/glm.hpp"
-#include "lib/glm/gtc/matrix_transform.hpp"
-#include "lib/glm/gtc/type_ptr.hpp"
-#include "lib/glad/glad.h"
-#include "lib/GLFW/glfw3.h"
+#include "../lib/glm/glm.hpp"
+#include "../lib/glm/gtc/matrix_transform.hpp"
+#include "../lib/glm/gtc/type_ptr.hpp"
+#include "../lib/glad/glad.h"
+#include "../lib/GLFW/glfw3.h"
 #include <vector>
 #include "opengltexture.h"
 
@@ -59,19 +59,63 @@ enum{
     KEY_RIGHT_SHIFT = GLFW_KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL = GLFW_KEY_RIGHT_CONTROL, KEY_RIGHT_OPTION = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_ALT = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_COMMAND = 0x36,
     KEY_VOLUME_UP = 0x48, KEY_VOLUME_DOWN = 0x49, KEY_MUTE = 0x4A,
     //  #####     MOUSE BUTTONS     #####
-    KEY_MOUSE_LEFT = GLFW_MOUSE_BUTTON_1,
-    KEY_MOUSE_RIGHT = GLFW_MOUSE_BUTTON_3,
-    KEY_MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_2,
-    KEY_MOUSE_X1 = GLFW_MOUSE_BUTTON_4,
-    KEY_MOUSE_X2 = GLFW_MOUSE_BUTTON_5,
+    MOUSE_LEFT = GLFW_MOUSE_BUTTON_1,
+    MOUSE_RIGHT = GLFW_MOUSE_BUTTON_3,
+    MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_2,
+    MOUSE_X1 = GLFW_MOUSE_BUTTON_4,
+    MOUSE_X2 = GLFW_MOUSE_BUTTON_5,
 
     //  #####     OTHER     #####
+};
+
+class vertexBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec3>& buf){
+        buffer = buf;
+        count = buf.size()/3;
+    }
+    int size(){return count;}
+    std::vector<glm::vec3> getBuffer(){
+        return buffer;
+    }
+private:
+    std::vector<glm::vec3> buffer;
+    int count;
+};
+class normalBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec3>& buf){
+        buffer = buf;
+        count = buf.size()/3;
+    }
+    int size(){return count;}
+    std::vector<glm::vec3> getBuffer(){
+        return buffer;
+    }
+private:
+    std::vector<glm::vec3> buffer;
+    int count;
+};
+class uvBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec2>& buf){
+        buffer = buf;
+        count = buf.size()/2;
+    }
+    int size(){return count;}
+    std::vector<glm::vec2> getBuffer(){
+        return buffer;
+    }
+private:
+    std::vector<glm::vec2> buffer;
+    int count;
 };
 
 class Texture : public OpenGLTexture {
 public:
     Texture(const char* filepath) : OpenGLTexture(filepath) {}
 };
+
 
 class OpenGLBento {
 public:
@@ -80,9 +124,12 @@ public:
     void draw();
     void render();
     bool isRunning();
-    void setVertices(const std::vector<glm::vec3>& vertices);
-    void setNormals(const std::vector<glm::vec3>& normals);
-    void setUvs(const std::vector<glm::vec2>& uvs);
+    void setVerticesDirect(const std::vector<glm::vec3>& vertices);
+    void setNormalsDirect(const std::vector<glm::vec3>& normals);
+    void setUvsDirect(const std::vector<glm::vec2>& uvs);
+    void setVertices(vertexBuffer vertices);
+    void setNormals(normalBuffer normals);
+    void setUvs(uvBuffer uvs);
     void setProjectionMatrix(const glm::mat4& m);
     void setViewMatrix(const glm::mat4& v);
     void setModelMatrix(const glm::mat4& p);
@@ -91,12 +138,13 @@ public:
     void setWindowPos(glm::vec2 pos);
     void toggleFullscreen();
     bool getKey(int key);
+    bool getMouse(int mouse);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
-    void bindTexture(Texture *tex, int slot);
+    void bindTexture(class Texture *tex);
     void unbindTexture();
     void exit();
 private:

@@ -1,17 +1,10 @@
-#include "lib/glm/glm.hpp"
-#include "lib/glm/gtc/matrix_transform.hpp"
-#include "lib/glm/gtc/type_ptr.hpp"
+#include "../lib/glm/glm.hpp"
+#include "../lib/glm/gtc/matrix_transform.hpp"
+#include "../lib/glm/gtc/type_ptr.hpp"
 #import "metal.h"
 #import "metalcommon.h"
 
 id<MTLDevice> device = nil;
-
-
-typedef NS_ENUM(NSInteger, KeyState) {
-    KeyStateNone,
-    KeyStatePressed,
-    KeyStateReleased
-};
 
 @interface MetalRendererObjC : NSResponder
 @property (nonatomic, strong) id<MTLDevice> device;
@@ -27,6 +20,7 @@ typedef NS_ENUM(NSInteger, KeyState) {
 @property (nonatomic, strong) id<MTLDepthStencilState> depthStencilState;
 @property (nonatomic, strong) id<MTLTexture> depthTexture;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *keyStates;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *mouseStates;
 @property (nonatomic, strong) id<MTLTexture> texture;
 @property (nonatomic, strong) id<MTLSamplerState> sampler;
 @property (nonatomic, strong) id<CAMetalDrawable> drawable;
@@ -38,19 +32,19 @@ typedef NS_ENUM(NSInteger, KeyState) {
 @property (nonatomic) float *model;
 @property (nonatomic) float *view;
 @property (nonatomic) float *projection;
+@property (nonatomic) bool fullscreenable;
 - (void)initRenderer:(const char *)title width:(int)width height:(int)height;
 - (void)render;
 - (BOOL)isRunning;
-- (NSSize)getWindowSize;
-- (KeyState)getKey:(NSEvent *)event forKey:(int)key;
 @end
 
 @implementation MetalRendererObjC
 
+//they're all indented for vsc
 
 // #### MAIN ####
 
-- (void)initRenderer:(const char *)title width:(int)width height:(int)height {
+    - (void)initRenderer:(const char *)title width:(int)width height:(int)height {
         self.device = MTLCreateSystemDefaultDevice();
         device = MTLCreateSystemDefaultDevice();
         self.commandQueue = [self.device newCommandQueue];
@@ -86,6 +80,7 @@ typedef NS_ENUM(NSInteger, KeyState) {
                                                     name:NSWindowWillCloseNotification
                                                 object:self.window];
         self.keyStates = [NSMutableDictionary dictionary];
+        self.mouseStates = [NSMutableDictionary dictionary];
         self.metalLayer = [CAMetalLayer layer];
         self.metalLayer.device = self.device;
         self.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -98,7 +93,7 @@ typedef NS_ENUM(NSInteger, KeyState) {
 
 
 
-        NSString *metalFilePath = @"./shader.metal";
+        NSString *metalFilePath = @"./bento/shaders/shader.metal";
         NSError *error = nil;
 
         NSString *shaderSource = [NSString stringWithContentsOfFile:metalFilePath encoding:NSUTF8StringEncoding error:&error];
@@ -191,7 +186,7 @@ typedef NS_ENUM(NSInteger, KeyState) {
         [self.commandEncoder endEncoding];
         [commandBuffer commit];
         
-
+        self.fullscreenable = true;
 
 
 
@@ -292,17 +287,29 @@ typedef NS_ENUM(NSInteger, KeyState) {
     }
 
 // #### UNIFORMS ####
-    - (void)setVertices:(const float *)vertices count:(NSUInteger)count {
+    - (void)setVerticesDirect:(const float *)vertices count:(NSUInteger)count {
         self.vertexBuffer = [self.device newBufferWithBytes:vertices length:sizeof(float) * count options:MTLResourceStorageModeShared];
         self.vertCount = count/3;
     }
-    - (void)setNormals:(const float *)normals count:(NSUInteger)count {
+    - (void)setNormalsDirect:(const float *)normals count:(NSUInteger)count {
         self.normalBuffer = [self.device newBufferWithBytes:normals length:sizeof(float) * count options:MTLResourceStorageModeShared];
         self.normCount = count/3;
     }
-    - (void)setUvs:(const float *)uvs count:(NSUInteger)count {
+    - (void)setUvsDirect:(const float *)uvs count:(NSUInteger)count {
         self.uvBuffer = [self.device newBufferWithBytes:uvs length:sizeof(float) * count options:MTLResourceStorageModeShared];
         self.uvCount = count/3;
+    }
+    - (void)setVertices:(id<MTLBuffer>)vertices count:(NSUInteger)count {
+        self.vertexBuffer = vertices;
+        self.vertCount = count;
+    }
+    - (void)setNormals:(id<MTLBuffer>)normals count:(NSUInteger)count {
+        self.normalBuffer = normals;
+        self.normCount = count;
+    }
+    - (void)setUvs:(id<MTLBuffer>)uvs count:(NSUInteger)count {
+        self.uvBuffer = uvs;
+        self.uvCount = count;
     }
     - (void)setModelMatrix:(const float*)matrix {
         memcpy(self.model, matrix, sizeof(float) * 16);
@@ -313,53 +320,42 @@ typedef NS_ENUM(NSInteger, KeyState) {
     - (void)setProjectionMatrix:(const float*)matrix {
         memcpy(self.projection, matrix, sizeof(float) * 16);
     }
-    - (void)bindTextures:(NSArray<id<MTLTexture>> *)textures {
-        for (NSUInteger i = 0; i < textures.count; ++i) {
-            [self.commandEncoder setFragmentTexture:textures[i] atIndex:i];
-        }
-    }
-    - (void)bindTexture:(id<MTLTexture>)tex samp:(id<MTLSamplerState>)samp slot:(NSUInteger)slot {
+    - (void)bindTexture:(id<MTLTexture>)tex samp:(id<MTLSamplerState>)samp {
         self.texture = tex;
         self.sampler = samp;
-        //[self.commandEncoder setFragmentTexture:tex atIndex:slot];
     }
 
 
 // #### INPUT ####
-    - (KeyState)getKey:(NSEvent *)event forKey:(int)key {
-        if (event.type == NSEventTypeKeyDown) {
-            NSUInteger keyCode = event.keyCode;
-            if (keyCode == key) {
-                return KeyStatePressed;
-            }
-        } else if (event.type == NSEventTypeKeyUp) {
-            NSUInteger keyCode = event.keyCode;
-            if (keyCode == key) {
-                return KeyStateReleased;
-            }
-        }
-        return KeyStateNone;
-    }
-
-
     - (void)updateKeyStates:(NSEvent *)event {
         if (event.modifierFlags & NSEventModifierFlagCommand) {
-            self.keyStates[@(55)] = @(KeyStatePressed);
+            self.keyStates[@(55)] = @(1);
         }else{
-            self.keyStates[@(55)] = @(KeyStateReleased);
+            self.keyStates[@(55)] = @(0);
         }
         if (event.modifierFlags & NSEventModifierFlagControl) {
-            self.keyStates[@(59)] = @(KeyStatePressed);
+            self.keyStates[@(59)] = @(1);
         } else {
-            self.keyStates[@(59)] = @(KeyStateReleased);
+            self.keyStates[@(59)] = @(0);
         }
         if (event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp) {
             NSUInteger keyCode = event.keyCode;
             if (event.type == NSEventTypeKeyDown) {
-                self.keyStates[@(keyCode)] = @(KeyStatePressed);
+                self.keyStates[@(keyCode)] = @(1);
             } else if (event.type == NSEventTypeKeyUp) {
-                self.keyStates[@(keyCode)] = @(KeyStateReleased);
+                self.keyStates[@(keyCode)] = @(0);
             }
+        }
+    }
+    - (void)updateMouseStates:(NSEvent *)event {
+        if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeLeftMouseUp) {
+            self.mouseStates[@(0)] = @(event.type == NSEventTypeLeftMouseDown ? 1 : 0);
+        } 
+        else if (event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeRightMouseUp) {
+            self.mouseStates[@(1)] = @(event.type == NSEventTypeRightMouseDown ? 1 : 0);
+        }
+        else if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp) {
+            self.mouseStates[@(event.buttonNumber)] = @(event.type == NSEventTypeOtherMouseDown ? 1 : 0);
         }
     }
     
@@ -418,30 +414,47 @@ typedef NS_ENUM(NSInteger, KeyState) {
 
     void MetalBento::init(const char *title, int w, int h) {
         MetalRendererObjC *renderer = [[MetalRendererObjC alloc] init];
-        [renderer initRenderer:title width:w height:h];
+        @autoreleasepool {
+            [renderer initRenderer:title width:w height:h];
+        }
         this->rendererObjC = (__bridge void*)renderer;
     }
 
     void MetalBento::predraw() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-
         @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer predraw];
+            if(getKey(KEY_LEFT_CONTROL)&&getKey(KEY_LEFT_COMMAND)&&getKey(KEY_F)){
+                toggleFullscreen();
+            }
+
+            if(getKey(KEY_LEFT_COMMAND)&&getKey(KEY_Q)){
+                exit();
+            }
         }
+        /*
+        if(self->getKey(KEY_LEFT_CONTROL)&&self->getKey(KEY_LEFT_COMMAND)&&self->getKey(KEY_F)&&self.fullscreenable){
+            self->toggleFullscreen();
+            self.fullscreenable = false;
+        }
+        if(!self->getKey(KEY_F))self.fullscreenable = true;
+
+        if(self->getKey(KEY_LEFT_COMMAND)&&self->getKey(KEY_Q)){
+            self->exit();
+        }
+        */
     }
 
     void MetalBento::draw() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-
         @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer draw];
         }
     }
 
     void MetalBento::render() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-
         @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer render];
             NSEvent *event = nil;
             while ((event = [renderer.app nextEventMatchingMask:NSEventMaskAny
@@ -451,66 +464,110 @@ typedef NS_ENUM(NSInteger, KeyState) {
                 [renderer.app sendEvent:event];
                 [renderer.app updateWindows];
                 [renderer updateKeyStates:event];
+                [renderer updateMouseStates:event];
             }
             [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0 / 144.0]];
         }
     }
 
     void MetalBento::exit() {
-        [[NSApplication sharedApplication] terminate:nil];
+        @autoreleasepool {
+            [[NSApplication sharedApplication] terminate:nil];
+        }
     }
 
     bool MetalBento::isRunning() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        return [renderer isRunning];
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+          return [renderer isRunning];
+        }
     }
 
     void MetalBento::toggleFullscreen(){
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer toggleFullScreen];
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer toggleFullScreen];
+        }
     }
 
     bool MetalBento::isWindowFocused() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        return [renderer isWindowFocused];
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return [renderer isWindowFocused];
+        }
     }
 
 // #### UNIFORMS ####
 
-    void MetalBento::setVertices(const std::vector<glm::vec3>& vertices) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer setVertices:(float *)vertices.data() count:vertices.size() * 3];
+    void MetalBento::setVerticesDirect(const std::vector<glm::vec3>& vertices) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setVerticesDirect:(float *)vertices.data() count:vertices.size() * 3];
+        }
     }
 
-    void MetalBento::setNormals(const std::vector<glm::vec3>& normals) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer setNormals:(float *)normals.data() count:normals.size() * 3];
+    void MetalBento::setNormalsDirect(const std::vector<glm::vec3>& normals) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setNormalsDirect:(float *)normals.data() count:normals.size() * 3];
+        }
     }
 
-    void MetalBento::setUvs(const std::vector<glm::vec2>& uvs) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer setUvs:(float *)uvs.data() count:uvs.size() * 2];
+    void MetalBento::setUvsDirect(const std::vector<glm::vec2>& uvs) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setUvsDirect:(float *)uvs.data() count:uvs.size() * 2];
+        }
+    }
+
+    void MetalBento::setVertices(class vertexBuffer vs) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setVertices:(__bridge id<MTLBuffer>)vs.getBuffer() count:vs.size() * 3];
+        }
+    }
+
+    void MetalBento::setNormals(class normalBuffer ns) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setNormals:(__bridge id<MTLBuffer>)ns.getBuffer() count:ns.size() * 3];
+        }
+    }
+
+    void MetalBento::setUvs(class uvBuffer uvs) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setUvs:(__bridge id<MTLBuffer>)uvs.getBuffer() count:uvs.size() * 2];
+        }
     }
 
 
     void MetalBento::setModelMatrix(const glm::mat4& m) {
-        MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-        [renderer setModelMatrix:(float*)&m];
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setModelMatrix:(float*)&m];
+        }
     }
 
     void MetalBento::setViewMatrix(const glm::mat4& v) {
-        MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-        [renderer setViewMatrix:(float*)&v];
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setViewMatrix:(float*)&v];
+        }
     }
 
     void MetalBento::setProjectionMatrix(const glm::mat4& p) {
-        MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-        [renderer setProjectionMatrix:(float*)&p];
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setProjectionMatrix:(float*)&p];
+        }
     }
 
-    void MetalBento::bindTexture(Texture *tex, int slot) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer bindTexture:tex->getTexture() samp:tex->getSampler() slot:0];
+    void MetalBento::bindTexture(Texture *tex) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer bindTexture:tex->getTexture() samp:tex->getSampler()];
+        }
     }
 
     void MetalBento::unbindTexture() {
@@ -518,72 +575,128 @@ typedef NS_ENUM(NSInteger, KeyState) {
     }
 // #### INPUT ####
     bool MetalBento::getKey(int key) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        KeyState state = static_cast<KeyState>([renderer.keyStates[@(key)] integerValue] ?: KeyStateNone);
-        
-        switch (state) {
-            case KeyStatePressed:
-                return true;
-            break;
-
-            case KeyStateReleased:
-                return false;
-            break;
-
-            default:
-                break;
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            
+            switch ([renderer.keyStates[@(key)] integerValue]) {
+                case 1:
+                    return true;
+                case 0:
+                    return false;
+                default:
+                    break;
+            }
+            return false;
         }
-        return false;
     }
+
+    bool MetalBento::getMouse(int mouse) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            NSNumber* mouseStateNumber = renderer.mouseStates[@(mouse)];
+            
+            switch ([mouseStateNumber integerValue]) {
+                case 1:
+                    return true;
+                case 0:
+                    return false;
+                default:
+                    break;
+            }
+            return false;
+        }
+    }
+
 // #### MOUSE AND WINDOWS ####
     glm::vec2 MetalBento::getWindowSize() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        NSSize size = [renderer getWindowSize];
-        return glm::vec2(size.width,size.height);
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            NSSize size = [renderer getWindowSize];
+            return glm::vec2(size.width,size.height);
+        }
     }
 
     glm::vec2 MetalBento::getWindowPos() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        NSPoint pos = [renderer getWindowPos];
-        glm::vec2 wSize = getWindowSize();
-        glm::vec2 dSize = getDisplaySize();
-        return glm::vec2(pos.x,dSize.y-(pos.y+wSize.y));
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            NSPoint pos = [renderer getWindowPos];
+            glm::vec2 wSize = getWindowSize();
+            glm::vec2 dSize = getDisplaySize();
+            return glm::vec2(pos.x,dSize.y-(pos.y+wSize.y));
+        }
     }
 
     void MetalBento::setMouseCursor(bool hide, int cursor) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        [renderer setMouseCursor:cursor hidden:hide];
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setMouseCursor:cursor hidden:hide];
+        }
     }
 
     glm::vec2 MetalBento::getMousePosition() {
-        CGPoint mouseLocation = [NSEvent mouseLocation];
-        return glm::vec2(mouseLocation.x, mouseLocation.y);
+        @autoreleasepool {
+            CGPoint mouseLocation = [NSEvent mouseLocation];
+            return glm::vec2(mouseLocation.x, mouseLocation.y);
+        }
     }
 
     void MetalBento::setMousePosition(glm::vec2 pos, bool needsFocus) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        if ([renderer isWindowFocused]) {
-            CGPoint newPosition;
-            newPosition.x = pos.x;
-            glm::vec2 dSize = getDisplaySize();
-            newPosition.y = dSize.y - pos.y;
-            CGEventRef moveEvent = CGEventCreateMouseEvent(NULL, kCGEventMouseMoved, newPosition, kCGMouseButtonLeft);
-            CGEventPost(kCGHIDEventTap, moveEvent);
-            CFRelease(moveEvent);
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            if ([renderer isWindowFocused]) {
+                CGPoint newPosition;
+                newPosition.x = pos.x;
+                glm::vec2 dSize = getDisplaySize();
+                newPosition.y = dSize.y - pos.y;
+                CGEventRef moveEvent = CGEventCreateMouseEvent(NULL, kCGEventMouseMoved, newPosition, kCGMouseButtonLeft);
+                CGEventPost(kCGHIDEventTap, moveEvent);
+                CFRelease(moveEvent);
+            }
         }
     }
 
 
     void MetalBento::setWindowPos(glm::vec2 pos) {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        glm::vec2 wSize = getWindowSize();
-        glm::vec2 dSize = getDisplaySize();
-        [renderer setWindowPos:NSMakePoint(pos.x,dSize.y-(pos.y+wSize.y))];
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            glm::vec2 wSize = getWindowSize();
+            glm::vec2 dSize = getDisplaySize();
+            [renderer setWindowPos:NSMakePoint(pos.x,dSize.y-(pos.y+wSize.y))];
+        }
     }
 
     glm::vec2 MetalBento::getDisplaySize() {
-        MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-        NSSize size = [renderer getDisplaySize];
-        return glm::vec2(size.width,size.height);
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            NSSize size = [renderer getDisplaySize];
+            return glm::vec2(size.width,size.height);
+        }
     }
 
+
+
+// #### BUFFERS ####
+
+    void vertexBuffer::setBuffer(const std::vector<glm::vec3>& buf){
+        buffer = [device newBufferWithBytes:(float *)buf.data() length:sizeof(glm::vec3) * buf.size() options:MTLResourceStorageModeShared];
+        count = buf.size()/3;
+    }
+    void* vertexBuffer::getBuffer() {
+        return (__bridge void*)buffer;
+    }
+
+    void normalBuffer::setBuffer(const std::vector<glm::vec3>& buf){
+        buffer = [device newBufferWithBytes:(float *)buf.data() length:sizeof(glm::vec3) * buf.size() options:MTLResourceStorageModeShared];
+        count = buf.size()/3;
+    }
+    void* normalBuffer::getBuffer() {
+        return (__bridge void*)buffer;
+    }
+
+    void uvBuffer::setBuffer(const std::vector<glm::vec2>& buf){
+        buffer = [device newBufferWithBytes:(float *)buf.data() length:sizeof(glm::vec2) * buf.size() options:MTLResourceStorageModeShared];
+        count = buf.size()/2;
+    }
+    void* uvBuffer::getBuffer() {
+        return (__bridge void*)buffer;
+    }

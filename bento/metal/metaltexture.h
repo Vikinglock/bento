@@ -10,7 +10,7 @@
 
 #include <string>
 
-class MetalTexture {
+class MetalTexture {//it worked like this; never touch again
 public:
     MetalTexture(const char* filepath);
     ~MetalTexture();

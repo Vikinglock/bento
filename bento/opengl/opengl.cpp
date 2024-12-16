@@ -1,7 +1,7 @@
 #include "opengl.h"
-#include "lib/glm/glm.hpp"
-#include "lib/glm/gtc/matrix_transform.hpp"
-#include "lib/glm/gtc/type_ptr.hpp"
+#include "../lib/glm/glm.hpp"
+#include "../lib/glm/gtc/matrix_transform.hpp"
+#include "../lib/glm/gtc/type_ptr.hpp"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -107,7 +107,7 @@ void OpenGLBento::init(const char *title, int width, int height){
         return;
     }
 
-    shader = createShaderProgram("shader.vs", "shader.fs");
+    shader = createShaderProgram("bento/shaders/shader.vs", "bento/shaders/shader.fs");
     modelLocation = glGetUniformLocation(shader, "model");
     viewLocation = glGetUniformLocation(shader, "view");
     projectionLocation = glGetUniformLocation(shader, "projection");
@@ -121,7 +121,7 @@ void OpenGLBento::init(const char *title, int width, int height){
     glEnable(GL_DEPTH_TEST);
 }
 
-void OpenGLBento::setVertices(const std::vector<glm::vec3>& vs) {
+void OpenGLBento::setVerticesDirect(const std::vector<glm::vec3>& vs) {
     vertices = vs;
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_DYNAMIC_DRAW);
@@ -129,7 +129,7 @@ void OpenGLBento::setVertices(const std::vector<glm::vec3>& vs) {
     glEnableVertexAttribArray(0);
 }
 
-void OpenGLBento::setNormals(const std::vector<glm::vec3>& ns) {
+void OpenGLBento::setNormalsDirect(const std::vector<glm::vec3>& ns) {
     normals = ns;
     glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
     glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), normals.data(), GL_DYNAMIC_DRAW);
@@ -137,7 +137,7 @@ void OpenGLBento::setNormals(const std::vector<glm::vec3>& ns) {
     glEnableVertexAttribArray(1);
 }
 
-void OpenGLBento::setUvs(const std::vector<glm::vec2>& uv) {
+void OpenGLBento::setUvsDirect(const std::vector<glm::vec2>& uv) {
     uvs = uv;
     glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
     glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), uvs.data(), GL_DYNAMIC_DRAW);
@@ -145,8 +145,32 @@ void OpenGLBento::setUvs(const std::vector<glm::vec2>& uv) {
     glEnableVertexAttribArray(2);
 }
 
-void OpenGLBento::bindTexture(Texture *texture, int slot) {
-    glActiveTexture(GL_TEXTURE0 + slot);
+void OpenGLBento::setVertices(class vertexBuffer vs) {
+    vertices = vs.getBuffer();
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(0);
+}
+
+void OpenGLBento::setNormals(class normalBuffer ns) {
+    normals = ns.getBuffer();
+    glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), normals.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(1);
+}
+
+void OpenGLBento::setUvs(class uvBuffer us) {
+    uvs = us.getBuffer();
+    glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
+    glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), uvs.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(2);
+}
+
+void OpenGLBento::bindTexture(Texture *texture) {
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture->getTexture());
 }
 
@@ -209,6 +233,9 @@ bool OpenGLBento::isWindowFocused() {
 // #### INPUT ####
 bool OpenGLBento::getKey(int key) {
     return glfwGetKey(window, key) == GLFW_PRESS;
+}
+bool OpenGLBento::getMouse(int mouse) {
+    return glfwGetMouseButton(window, mouse) == GLFW_PRESS;
 }
 
 // #### MOUSE AND WINDOWS ####

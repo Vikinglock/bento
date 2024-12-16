@@ -2,28 +2,15 @@
 #define BENTO_H
 
 #ifdef USE_METAL
-#include "metal.h"
-class Bento : public MetalBento {
-public:
-    Bento() = default;
-    ~Bento() = default;
-};
+#include "metal/metal.h"
+class Bento : public MetalBento {};
 #elif USE_OPENGL
-#include "opengl.h"
-class Bento : public OpenGLBento {
-public:
-    Bento() = default;
-    ~Bento() = default;
-};
+#include "opengl/opengl.h"
+class Bento : public OpenGLBento {};
 #else
-#include "opengl.h"
-class Bento : public OpenGLBento {
-public:
-
-};
+#include "opengl/opengl.h"
+class Bento : public OpenGLBento {};
 #endif
-
-
 
 
 void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals) {

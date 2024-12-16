@@ -2,9 +2,9 @@
 #define METAL_H
 
 #include <iostream>
-#include "lib/glm/glm.hpp"
-#include "lib/glm/gtc/matrix_transform.hpp"
-#include "lib/glm/gtc/type_ptr.hpp"
+#include "../lib/glm/glm.hpp"
+#include "../lib/glm/gtc/matrix_transform.hpp"
+#include "../lib/glm/gtc/type_ptr.hpp"
 #include "metaltexture.h"
 
 #ifdef __OBJC__
@@ -61,15 +61,44 @@ enum{
     KEY_RIGHT_SHIFT = 0x39, KEY_RIGHT_CONTROL = 0x3C, KEY_RIGHT_OPTION = 0x3D, KEY_RIGHT_ALT = 0x3D, KEY_RIGHT_COMMAND = 0x36,
     KEY_VOLUME_UP = 0x48, KEY_VOLUME_DOWN = 0x49, KEY_MUTE = 0x4A,
     //  #####     MOUSE BUTTONS     #####
-    KEY_MOUSE_LEFT = 0x50,
-    KEY_MOUSE_RIGHT = 0x51,
-    KEY_MOUSE_MIDDLE = 0x52,
-    KEY_MOUSE_X1 = 0x53,
-    KEY_MOUSE_X2 = 0x54,
+    MOUSE_LEFT = 0x0,
+    MOUSE_RIGHT = 0x1,
+    MOUSE_MIDDLE = 0x2,
+    MOUSE_X1 = 0x3,
+    MOUSE_X2 = 0x4,
 
     //  #####     OTHER     #####
 };
 
+class vertexBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec3>& buf);
+    int size(){return count;}
+    void* getBuffer();
+private:
+    void* buffer;
+    int count;
+};
+
+class normalBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec3>& buf);
+    int size(){return count;}
+    void* getBuffer();
+private:
+    void* buffer;
+    int count;
+};
+
+class uvBuffer {
+public:
+    void setBuffer(const std::vector<glm::vec2>& buf);
+    int size(){return count;}
+    void* getBuffer();
+private:
+    void* buffer;
+    int count;
+};
 
 class Texture : public MetalTexture {
 public:
@@ -83,9 +112,12 @@ public:
     void draw();
     void render();
     bool isRunning();
-    void setVertices(const std::vector<glm::vec3>& vertices);
-    void setNormals(const std::vector<glm::vec3>& normals);
-    void setUvs(const std::vector<glm::vec2>& uvs);
+    void setVerticesDirect(const std::vector<glm::vec3>& vertices);
+    void setNormalsDirect(const std::vector<glm::vec3>& normals);
+    void setUvsDirect(const std::vector<glm::vec2>& uvs);
+    void setVertices(vertexBuffer vertices);
+    void setNormals(normalBuffer normals);
+    void setUvs(uvBuffer uvs);
     void setModelMatrix(const glm::mat4& m);
     void setViewMatrix(const glm::mat4& v);
     void setProjectionMatrix(const glm::mat4& p);
@@ -94,12 +126,13 @@ public:
     void setWindowPos(glm::vec2 pos);
     void toggleFullscreen();
     bool getKey(int key);
+    bool getMouse(int mouse);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
-    void bindTexture(Texture *tex, int slot);
+    void bindTexture(class Texture *tex);
     void unbindTexture();
     void exit();
 
