@@ -1,6 +1,6 @@
 # bento
 
-the bento (ベント) game engine made by yours truly
+the bento (ベント) game engine made by yours truly (me)
 
 free, forever
 
@@ -12,7 +12,7 @@ though obviously in the bento/lib/ folder there are a bunch of files and librari
 
 bento is a powerful game engine for C++ that handles all of the graphical hurdles that is presented when coding very low level graphics swiftly and with great elegance
 
-## advantages
+## anything i put here sounds really corporate so you get a large body of large text
 
 ### easy to use
 
@@ -24,6 +24,8 @@ Bento *bento = new Bento();
 bento->init("TITLE",width,height);
 ```
 
+by the way c++ is easy idk what they're talking about
+
 ### open source
 
 bento is open source which means that anyone on the interwebs can view this code, download it, and modify it to their heart's content. (although you're on github so you probably know what this means)
@@ -34,9 +36,11 @@ also any games made on this engine will NEVER need to pay extra fees because it'
 
 ### lightweight
 
-bento is currently only about 20MB with most of it being other libraries like the bullet physics engine and opengl
+~~bento is currently only about 20MB with most of it being other libraries like the bullet physics engine and opengl~~
 
-also the example runs at 60+ fps only taking 45 MB ram on my computer
+~~also the example runs at 60+ fps only taking 45 MB ram on my computer~~
+
+holy christ remind me to optimize it at some point
 
 ### cross-platform
 
@@ -60,6 +64,11 @@ with support coming soon for:
 - standalone vr (quest, pico)
 
 i'll try adding support for older gen consoles too (:
+
+
+speaking of consoles and pc
+
+built in controller support exists for windows linux and mac (on mac only the specific controller brand that i have works)
 
 ## include
 
