@@ -18,8 +18,12 @@ enum {
 bool shouldClose;
 int vertCount = 0;
 int normCount = 0;
-int uvCount = 0;  
+int uvCount = 0;
 
+int buttonCount;
+const unsigned char* buttons[GLFW_JOYSTICK_LAST];
+int axisCount;
+const float* axes[GLFW_JOYSTICK_LAST];
 //opengl is so much more straightforward
 
 // #### MAIN ####
@@ -69,7 +73,7 @@ GLuint createShaderProgram(const std::string& vertexPath, const std::string& fra
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
         std::vector<char> log(logLength);
         glGetProgramInfoLog(program, logLength, nullptr, log.data());
-        std::cerr << "Program linking failed: " << log.data() << std::endl;
+        std::cerr << "program fail: " << log.data() << std::endl;
         glDeleteProgram(program);
         return 0;
     }
@@ -96,14 +100,14 @@ void OpenGLBento::init(const char *title, int width, int height){
 
     window = glfwCreateWindow(width, height, title, nullptr, nullptr);
     if (!window) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
+        std::cerr << "could not create glfw window" << std::endl;
         glfwTerminate();
         return;
     }
 
     glfwMakeContextCurrent(window);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cerr << "Failed to initialize GLAD" << std::endl;
+        std::cerr << "could not initialize glad (not glad)" << std::endl;
         return;
     }
 
@@ -111,6 +115,14 @@ void OpenGLBento::init(const char *title, int width, int height){
     modelLocation = glGetUniformLocation(shader, "model");
     viewLocation = glGetUniformLocation(shader, "view");
     projectionLocation = glGetUniformLocation(shader, "projection");
+
+
+    for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
+        if (glfwJoystickPresent(i)) {
+            buttons[i] = glfwGetJoystickButtons(i, &buttonCount);
+            axes[i] = glfwGetJoystickAxes(i, &axisCount);
+        }
+    }
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -182,7 +194,12 @@ void OpenGLBento::predraw() {
     glfwPollEvents();
     glClearColor(0.0f,0.0f,0.0f,1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+    for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
+        if (glfwJoystickPresent(i)) {
+            buttons[i] = glfwGetJoystickButtons(i, &buttonCount);
+            axes[i] = glfwGetJoystickAxes(i, &axisCount);
+        }
+    }
     glUseProgram(shader);
 }
 
@@ -262,16 +279,34 @@ void OpenGLBento::setMouseCursor(bool hide, int cursor) {
 glm::vec2 OpenGLBento::getMousePosition() {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
-    return glm::vec2(x, y);
+    return glm::vec2(x,y)+getWindowPos();
 }
 
 void OpenGLBento::setMousePosition(glm::vec2 pos, bool needsFocus) {
-    glfwSetCursorPos(window, pos.x, pos.y);
+    glm::vec2 windowPos = getWindowPos();
+    glfwSetCursorPos(window, pos.x-windowPos.x, pos.y-windowPos.y);
     if (needsFocus) {
         glfwFocusWindow(window);
     }
 }
 
+glm::vec2 OpenGLBento::getControllerAxis(int controller, JoystickType joystick) {
+    if (axes[controller] == nullptr || axisCount < 4) {
+        std::cout << "error (with the controller axes (like the joysticks and stuff))" << std::endl;
+        return glm::vec2(0.0f, 0.0f);
+    }
+    switch (joystick) {
+        case GAMEPAD_JOYSTICK_LEFT:
+            return glm::vec2(axes[controller][0], axes[controller][1]);
+        case GAMEPAD_JOYSTICK_RIGHT:
+            return glm::vec2(axes[controller][2], axes[controller][3]);
+        default:
+            return glm::vec2(0.0f, 0.0f);
+    }
+}
+bool OpenGLBento::getControllerButton(int controller, ButtonType button){
+    return buttons[controller][button] == GLFW_PRESS;
+}
 
 void OpenGLBento::setWindowPos(glm::vec2 pos) {
     glfwSetWindowPos(window, pos.x, pos.y);

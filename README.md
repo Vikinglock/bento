@@ -36,7 +36,7 @@ also any games made on this engine will NEVER need to pay extra fees because it'
 
 bento is currently only about 20MB with most of it being other libraries like the bullet physics engine and opengl
 
-also the example runs at 60+ fps only taking (update this after fixing memory leak (if i don't just know it was 1GB after 1:30)) MB ram
+also the example runs at 60+ fps only taking 45 MB ram on my computer
 
 ### cross-platform
 

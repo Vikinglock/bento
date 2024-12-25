@@ -68,6 +68,35 @@ enum{
     //  #####     OTHER     #####
 };
 
+enum JoystickType{
+    GAMEPAD_JOYSTICK_LEFT,
+    GAMEPAD_JOYSTICK_RIGHT,
+};
+enum ButtonType{
+    GAMEPAD_KEY_A = GLFW_GAMEPAD_BUTTON_A,
+    GAMEPAD_KEY_B = GLFW_GAMEPAD_BUTTON_B,
+    GAMEPAD_KEY_X = GLFW_GAMEPAD_BUTTON_X,
+    GAMEPAD_KEY_Y = GLFW_GAMEPAD_BUTTON_Y,
+
+    GAMEPAD_KEY_R1 = GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER,
+    GAMEPAD_KEY_R2 = GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER+2,
+    GAMEPAD_KEY_R3 = GLFW_GAMEPAD_BUTTON_RIGHT_THUMB,
+
+    GAMEPAD_KEY_L1 = GLFW_GAMEPAD_BUTTON_LEFT_BUMPER,
+    GAMEPAD_KEY_L2 = GLFW_GAMEPAD_BUTTON_LEFT_BUMPER+2,
+    GAMEPAD_KEY_L3 = GLFW_GAMEPAD_BUTTON_LEFT_THUMB,
+
+    GAMEPAD_KEY_START = GLFW_GAMEPAD_BUTTON_START,
+    GAMEPAD_KEY_SELECT = GLFW_GAMEPAD_BUTTON_BACK,
+    GAMEPAD_KEY_HOME = GLFW_GAMEPAD_BUTTON_GUIDE,
+    GAMEPAD_KEY_SCREENSHOT = GLFW_GAMEPAD_BUTTON_GUIDE,
+
+    GAMEPAD_KEY_UP = GLFW_GAMEPAD_BUTTON_DPAD_UP,
+    GAMEPAD_KEY_DOWN = GLFW_GAMEPAD_BUTTON_DPAD_DOWN,
+    GAMEPAD_KEY_LEFT = GLFW_GAMEPAD_BUTTON_DPAD_LEFT,
+    GAMEPAD_KEY_RIGHT = GLFW_GAMEPAD_BUTTON_DPAD_RIGHT,
+};
+
 class vertexBuffer {
 public:
     void setBuffer(const std::vector<glm::vec3>& buf){
@@ -142,6 +171,8 @@ public:
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();
+    glm::vec2 getControllerAxis(int controller, JoystickType joystick);
+    bool getControllerButton(int controller, ButtonType button);
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);

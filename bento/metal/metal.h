@@ -70,6 +70,36 @@ enum{
     //  #####     OTHER     #####
 };
 
+enum JoystickType{
+    GAMEPAD_JOYSTICK_LEFT,
+    GAMEPAD_JOYSTICK_RIGHT,
+};
+enum ButtonType{
+    GAMEPAD_KEY_A,
+    GAMEPAD_KEY_B,
+    GAMEPAD_KEY_X,
+    GAMEPAD_KEY_Y,
+
+    GAMEPAD_KEY_R,
+    GAMEPAD_KEY_R2,
+    GAMEPAD_KEY_R3,
+
+    GAMEPAD_KEY_L,
+    GAMEPAD_KEY_L2,
+    GAMEPAD_KEY_L3,
+
+    GAMEPAD_KEY_START,
+    GAMEPAD_KEY_SELECT,
+    GAMEPAD_KEY_HOME,
+    GAMEPAD_KEY_SCREENSHOT,
+
+    GAMEPAD_KEY_UP,
+    GAMEPAD_KEY_DOWN,
+    GAMEPAD_KEY_LEFT,
+    GAMEPAD_KEY_RIGHT,
+};
+
+
 class vertexBuffer {
 public:
     void setBuffer(const std::vector<glm::vec3>& buf);
@@ -130,6 +160,8 @@ public:
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();
+    glm::vec2 getControllerAxis(int controller, JoystickType joystick);
+    bool getControllerButton(int controller, ButtonType button);
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
