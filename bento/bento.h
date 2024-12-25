@@ -1,6 +1,5 @@
 #ifndef BENTO_H
 #define BENTO_H
-
 #ifdef USE_METAL
 #include "metal/metal.h"
 class Bento : public MetalBento {};
@@ -11,6 +10,80 @@ class Bento : public OpenGLBento {};
 #include "opengl/opengl.h"
 class Bento : public OpenGLBento {};
 #endif
+
+//also very sorry if this is a really unorthodox method of drawing stuff or handling graphics
+
+void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals);
+
+//I LOVE ENUMS I LOVE ENUMS I LOVE ENUMS
+enum{
+    PhysicsObject,
+    NoPhysicsObject,
+};
+
+
+class Mesh{
+public:
+    Mesh(const char *path){
+        loadOBJ(path,vertices,uvs,normals);
+        vBuffer.setBuffer(vertices);
+        nBuffer.setBuffer(normals);
+        uBuffer.setBuffer(uvs);
+    }
+    ~Mesh(){
+        delete&vertices;
+        delete&normals;
+        delete&uvs;
+        delete&vBuffer;
+        delete&nBuffer;
+        delete&uBuffer;
+    }
+    std::vector<glm::vec3> getVertices()const{return vertices;}
+    std::vector<glm::vec3> getNormals()const{return normals;}
+    std::vector<glm::vec2> getUVs()const{return uvs;}
+    vertexBuffer getVertexBuffer()const{return vBuffer;}
+    normalBuffer getNormalBuffer()const{return nBuffer;}
+    uvBuffer getUVBuffer()const{return uBuffer;}
+
+private:
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec2> uvs;
+    vertexBuffer vBuffer;
+    normalBuffer nBuffer;
+    uvBuffer uBuffer;
+};
+
+class Object{
+public:
+    Object(const char *n, glm::vec3 pos, Mesh m, Texture tex):mesh(m),texture(tex){
+        name = n;
+        position = pos;
+    }
+    Object(const char *n, glm::vec3 pos, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(Texture(texPath)){
+        name = n;
+        position = pos;
+    }
+    ~Object(){
+
+    }
+    void draw(Bento *bento){
+        bento->setVertices(mesh.getVertexBuffer());
+        bento->setNormals(mesh.getNormalBuffer());
+        bento->setUvs(mesh.getUVBuffer());
+        bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
+        bento->bindTexture(&texture);
+
+        bento->draw();
+    }
+    const Mesh& getMesh() const { return mesh; }
+    const Texture& getTexture() const { return texture; }
+private:
+    std::string name;
+    glm::vec3 position;
+    Mesh mesh;
+    Texture texture;
+};
 
 
 void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals) {
