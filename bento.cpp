@@ -34,15 +34,19 @@ glm::vec2 rightOffset, leftOffset;
 int main() {
     Bento *bento = new Bento();
     bento->init("ベント",1000,1000);
+    bento->focus();
 
     float elapsedTime = 0.0f;
 
     std::vector<Object*> objects;
-    objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj","resources/sword.png"));
+    objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj"));
 
     for(int i = -10; i < 10; i+=2)
         for(int j = -10; j < 50; j+=2)
-                objects.emplace_back(new Object("sword",glm::vec3(i,0,j),"resources/sword.obj","resources/sword.png"));
+                objects.emplace_back(new Object("sword",glm::vec3(i,0,j),"resources/sword.obj"));
+
+    Texture *swordTex = new Texture("resources/sword.png");
+
     Mesh *groundMesh = new Mesh("resources/ground.obj");
     Texture *groundTex = new Texture("resources/ground.png");
     
@@ -78,6 +82,7 @@ int main() {
 
         bento->setViewMatrix(view);
         bento->setProjectionMatrix(projection);
+        bento->bindTexture(swordTex);
 
         for(Object* obj : objects){
             obj->draw(bento);
