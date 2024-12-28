@@ -56,11 +56,23 @@ private:
 
 class Object{
 public:
-    Object(const char *n, glm::vec3 pos, Mesh m, Texture tex):mesh(m),texture(tex){
+    Object(const char *n, glm::vec3 pos, Mesh m, Texture* tex):mesh(m),texture(tex){
         name = n;
         position = pos;
     }
-    Object(const char *n, glm::vec3 pos, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(Texture(texPath)){
+    Object(const char *n, glm::vec3 pos, Mesh m):mesh(m),texture(nullptr){
+        name = n;
+        position = pos;
+    }
+    Object(const char *n, glm::vec3 pos, Texture* tex):mesh(nullptr),texture(tex){
+        name = n;
+        position = pos;
+    }
+    Object(const char *n, glm::vec3 pos, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(new Texture(texPath)){
+        name = n;
+        position = pos;
+    }
+    Object(const char *n, glm::vec3 pos, const char *meshPath):mesh(Mesh(meshPath)),texture(nullptr){
         name = n;
         position = pos;
     }
@@ -72,17 +84,19 @@ public:
         bento->setNormals(mesh.getNormalBuffer());
         bento->setUvs(mesh.getUVBuffer());
         bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
-        bento->bindTexture(&texture);
+        if(texture){
+            bento->bindTexture(texture);
+        }
 
         bento->draw();
     }
     const Mesh& getMesh() const { return mesh; }
-    const Texture& getTexture() const { return texture; }
+    const Texture* getTexture() const { return texture; }
 private:
     std::string name;
     glm::vec3 position;
     Mesh mesh;
-    Texture texture;
+    Texture* texture;
 };
 
 

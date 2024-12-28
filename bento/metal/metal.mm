@@ -48,7 +48,7 @@ struct controller{
 @property (nonatomic) float *view;
 @property (nonatomic) float *projection;
 @property (nonatomic) bool fullscreenable;
-- (void)initRenderer:(const char *)title width:(int)width height:(int)height;
+- (void)initRenderer:(const char *)title width:(int)width height:(int)height x:(int)x y:(int)y;
 - (void)render;
 - (BOOL)isRunning;
 @end
@@ -59,7 +59,7 @@ struct controller{
 
 // #### MAIN ####
 
-    - (void)initRenderer:(const char *)title width:(int)width height:(int)height {
+    - (void)initRenderer:(const char *)title width:(int)width height:(int)height x:(int)x y:(int)y {
         self.device = MTLCreateSystemDefaultDevice();
         device = MTLCreateSystemDefaultDevice();
         self.commandQueue = [self.device newCommandQueue];
@@ -71,7 +71,7 @@ struct controller{
         self.app = [NSApplication sharedApplication];
         [self.app setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-        NSRect frame = NSMakeRect(0, 0, width, height);
+        NSRect frame = NSMakeRect(0,0, width, height);
         NSUInteger windowStyle = (NSWindowStyleMaskTitled |
                                 NSWindowStyleMaskClosable |
                                 NSWindowStyleMaskResizable |
@@ -80,9 +80,12 @@ struct controller{
                                                 styleMask:windowStyle
                                                     backing:NSBackingStoreBuffered
                                                     defer:NO];
+
+
+        [self.window setFrameOrigin:NSMakePoint(x,([NSScreen mainScreen].frame.size.height-self.window.frame.size.height)-y)];
+
+
         [self.window setTitle:@(title)];//"ベント"];
-        [self.window makeKeyAndOrderFront:nil];
-        [self.window makeFirstResponder:self.window.contentView];
 
         [self.window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
 
@@ -96,6 +99,7 @@ struct controller{
         [self.metalLayer setFrame:frame];
         [self.window.contentView setLayer:self.metalLayer];
         [self.window.contentView setWantsLayer:YES];
+
         //[self toggleFullScreen];
 
 
@@ -196,7 +200,7 @@ struct controller{
         
         self.controllers = [NSMutableArray array];
 
-        //the based method (only works with like 3 controllers)
+        //the based method (literally only works with the controller i coded it for)
 
         if (hid_init()) {
             std::cerr << "couldn't enable hid (it's fine if you're not planning on using a controller)" << std::endl;
@@ -243,6 +247,11 @@ struct controller{
         [appMenuItem setSubmenu:appMenu];
 
         [NSApp setMainMenu:mainMenu];
+    }
+
+    - (void)focus {
+        [self.window makeKeyAndOrderFront:nil];
+        [self.window makeFirstResponder:self.window.contentView];
     }
 
     - (void)predraw {
@@ -570,10 +579,10 @@ struct controller{
 
 // #### MAIN ####
 
-    void MetalBento::init(const char *title, int w, int h) {
+    void MetalBento::init(const char *title, int w, int h, int x, int y) {
         MetalRendererObjC *renderer = [[MetalRendererObjC alloc] init];
         @autoreleasepool {
-            [renderer initRenderer:title width:w height:h];
+            [renderer initRenderer:title width:w height:h x:x y:y];
         }
         this->rendererObjC = (__bridge void*)renderer;
     }
@@ -640,6 +649,13 @@ struct controller{
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer toggleFullScreen];
+        }
+    }
+
+    void MetalBento::focus(){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer focus];
         }
     }
 

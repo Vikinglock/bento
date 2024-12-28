@@ -85,7 +85,7 @@ GLuint createShaderProgram(const std::string& vertexPath, const std::string& fra
 }
 
 
-void OpenGLBento::init(const char *title, int width, int height){
+void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return;
@@ -94,11 +94,13 @@ void OpenGLBento::init(const char *title, int width, int height){
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
     #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     #endif
 
     window = glfwCreateWindow(width, height, title, nullptr, nullptr);
+    glfwSetWindowPos(window, x, y);
     if (!window) {
         std::cerr << "could not create glfw window" << std::endl;
         glfwTerminate();
@@ -131,6 +133,10 @@ void OpenGLBento::init(const char *title, int width, int height){
     glGenBuffers(1, &uvBuffer);
 
     glEnable(GL_DEPTH_TEST);
+}
+
+void OpenGLBento::focus(){
+    glfwFocusWindow(window);
 }
 
 void OpenGLBento::setVerticesDirect(const std::vector<glm::vec3>& vs) {

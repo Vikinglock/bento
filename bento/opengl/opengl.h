@@ -148,7 +148,7 @@ public:
 
 class OpenGLBento {
 public:
-    void init(const char *title, int width, int height);
+    void init(const char *title, int width, int height, int x = 0, int y = 0);
     void predraw();
     void draw();
     void render();
@@ -166,6 +166,7 @@ public:
     glm::vec2 getWindowPos();
     void setWindowPos(glm::vec2 pos);
     void toggleFullscreen();
+    void focus();
     bool getKey(int key);
     bool getMouse(int mouse);
     void setMouseCursor(bool hide, int cursor);
