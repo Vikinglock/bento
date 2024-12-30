@@ -500,32 +500,27 @@ struct controller{
         
         ImGuiIO &io = ImGui::GetIO();
         switch (event.type) {
+            case NSEventTypeKeyUp:
             case NSEventTypeKeyDown: {
                 bool isKeyDown = (event.type == NSEventTypeKeyDown);
                 
-                auto it = dearImguiKey.find(event.keyCode);
-                if (it != dearImguiKey.end()) {
+                auto it = KeytoDearImguiKey.find(event.keyCode);
+                if (it != KeytoDearImguiKey.end()) {
                     io.AddKeyEvent(it->second, isKeyDown);
                 }
 
-                NSString *characters = event.characters;
-                if (characters.length > 0) {
-                    io.AddInputCharactersUTF8(characters.UTF8String);
-                }
-                
-                NSEventModifierFlags modifierFlags = event.modifierFlags;
-                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
-                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
-                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
-                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
-                break;
-            }
-            case NSEventTypeKeyUp: {
-                bool isKeyDown = (event.type == NSEventTypeKeyDown);
-                
-                auto it = dearImguiKey.find(event.keyCode);
-                if (it != dearImguiKey.end()) {
-                    io.AddKeyEvent(it->second, isKeyDown);
+                //printf("%02x\n",event.keyCode);
+                if (isKeyDown) {
+                    NSString *characters = event.characters;
+                    if (characters.length > 0 && event.type != NSEventTypeFlagsChanged) {
+                        unichar c = [characters characterAtIndex:0];
+                        if (c >= 33 && c != 127) {
+                            NSEventModifierFlags flags = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+                            if (!(flags & NSEventModifierFlagFunction)) {
+                              io.AddInputCharactersUTF8(characters.UTF8String);
+                            }
+                        }
+                    }
                 }
                 
                 NSEventModifierFlags modifierFlags = event.modifierFlags;
