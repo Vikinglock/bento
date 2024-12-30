@@ -241,6 +241,7 @@ bool OpenGLBento::isRunning(){
 
 // #### INPUT ####
 void OpenGLBento::exit() {
+    ImGui_ImplOpenGL3_Shutdown();
     glfwTerminate();
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shader);
@@ -323,3 +324,53 @@ glm::vec2 OpenGLBento::getDisplaySize() {
     glfwGetFramebufferSize(window, &width, &height);
     return glm::vec2(width, height);
 }
+
+
+
+void OpenGLBento::initImgui() {
+    IMGUI_CHECKVERSION();
+    ImGuiContext* imguiContext = ImGui::CreateContext();
+    ImGui::SetCurrentContext(imguiContext);
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
+    glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+        ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    });
+
+    glfwSetCharCallback(window, [](GLFWwindow *window, unsigned int c) {
+        ImGui_ImplGlfw_CharCallback(window, c);
+    });
+
+    glfwSetMouseButtonCallback(window, [](GLFWwindow *window, int button, int action, int mods) {
+        ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    });
+
+    glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
+        ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+    });
+
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height) {
+        glViewport(0, 0, width, height);
+    });
+}
+
+
+void OpenGLBento::imgui() {
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2((float)width, (float)height);
+    ImGui_ImplOpenGL3_NewFrame();
+
+    ImGui::NewFrame();
+    static bool show_demo_window = true;
+    ImGui::ShowDemoWindow(&show_demo_window);
+    ImGui::Begin("Example Window");
+    ImGui::Text("glfw");
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
