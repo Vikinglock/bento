@@ -2,6 +2,13 @@
 #define OPENGL_H
 
 #include <iostream>
+
+
+#include "../lib/imgui/imgui.h"
+#include "../lib/imgui/backends/imgui_impl_glfw.h"
+#include "../lib/imgui/backends/imgui_impl_opengl3.h"
+
+
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
 #include "../lib/glm/gtc/type_ptr.hpp"
@@ -9,6 +16,7 @@
 #include "../lib/GLFW/glfw3.h"
 #include <vector>
 #include "opengltexture.h"
+
 
 enum{
     //  #####     KEYS     #####
@@ -179,6 +187,9 @@ public:
     void bindTexture(class Texture *tex);
     void unbindTexture();
     void exit();
+
+    void initImgui();
+    void imgui();
 private:
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer, shader;
     GLFWwindow* window;
