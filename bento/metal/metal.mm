@@ -33,6 +33,7 @@ struct controller{
 @property (nonatomic, assign) BOOL shouldClose;
 @property (nonatomic, strong) id<MTLDepthStencilState> depthStencilState;
 @property (nonatomic, strong) id<MTLTexture> depthTexture;
+@property (nonatomic, strong) id<MTLTexture> appTexture;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *keyStates;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *mouseStates;
 @property (nonatomic, strong) id<MTLTexture> texture;
@@ -41,6 +42,8 @@ struct controller{
 @property (nonatomic, strong) id<MTLCommandBuffer> commandBuffer;
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
+@property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
+@property (nonatomic) MTLViewport viewport;
 @property (nonatomic) NSInteger vertCount;
 @property (nonatomic) NSInteger normCount;
 @property (nonatomic) NSInteger uvCount;
@@ -84,10 +87,19 @@ struct controller{
 
         [self.window setFrameOrigin:NSMakePoint(x,([NSScreen mainScreen].frame.size.height-self.window.frame.size.height)-y)];
 
-
         [self.window setTitle:@(title)];//"ベント"];
 
         [self.window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+
+
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                selector:@selector(windowDidResize:)
+                                                    name:NSWindowDidResizeNotification
+                                                object:self.window];//why did i get rid of this???
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                selector:@selector(windowWillClose:)
+                                                    name:NSWindowWillCloseNotification
+                                                object:self.window];
 
         self.keyStates = [NSMutableDictionary dictionary];
         self.mouseStates = [NSMutableDictionary dictionary];
@@ -168,7 +180,15 @@ struct controller{
         depthStencilDesc.depthCompareFunction = MTLCompareFunctionLess;
         depthStencilDesc.depthWriteEnabled = YES;
         self.depthStencilState = [self.device newDepthStencilStateWithDescriptor:depthStencilDesc];
-        
+
+        MTLTextureDescriptor *appTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                                    width:width
+                                                                                                height:height
+                                                                                                mipmapped:NO];
+        appTextureDesc.storageMode = MTLStorageModePrivate;
+        appTextureDesc.usage = MTLTextureUsageRenderTarget;
+
+        self.appTexture = [self.device newTextureWithDescriptor:appTextureDesc];
 
 
 
@@ -178,20 +198,20 @@ struct controller{
         }
         
 
-        MTLRenderPassDescriptor *passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-        passDescriptor.colorAttachments[0].texture = drawable.texture;
-        passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-        passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
-        passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+        self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+        self.passDescriptor.colorAttachments[0].texture = self.appTexture;
+        self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
-        passDescriptor.depthAttachment.texture = self.depthTexture;
-        passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
-        passDescriptor.depthAttachment.clearDepth = 1.0;
-        passDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
+        self.passDescriptor.depthAttachment.texture = self.depthTexture;
+        self.passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
+        self.passDescriptor.depthAttachment.clearDepth = 1.0;
+        self.passDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
 
 
         id<MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
-        self.commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:passDescriptor]; 
+        self.commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor]; 
 
         [self.commandEncoder endEncoding];
         [commandBuffer commit];
@@ -247,6 +267,8 @@ struct controller{
         [appMenuItem setSubmenu:appMenu];
 
         [NSApp setMainMenu:mainMenu];
+
+
     }
 
     - (void)focus {
@@ -260,17 +282,18 @@ struct controller{
         if (!self.drawable) {
             return;
         }
-        MTLRenderPassDescriptor *passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-        passDescriptor.colorAttachments[0].texture = self.drawable.texture;
-        passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
-        passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-        passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
-        passDescriptor.depthAttachment.texture = self.depthTexture;
-        passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
-        passDescriptor.depthAttachment.clearDepth = 1.0;
-        passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
-        self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:passDescriptor];
+        self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+        self.passDescriptor.colorAttachments[0].texture = self.appTexture;
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+        self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+        self.passDescriptor.depthAttachment.texture = self.depthTexture;
+        self.passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
+        self.passDescriptor.depthAttachment.clearDepth = 1.0;
+        self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
+        self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
     }
 
     - (void)draw {
@@ -286,8 +309,53 @@ struct controller{
 
         [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
         [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
-
+        
         [self.commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:self.vertCount];
+    }
+    - (void)render {
+        [self.commandEncoder endEncoding];
+        id<MTLBlitCommandEncoder> blitEncoder = [self.commandBuffer blitCommandEncoder];
+        [blitEncoder copyFromTexture:self.appTexture
+                 sourceSlice:0
+                 sourceLevel:0
+                sourceOrigin:MTLOriginMake(1, 2, 0)
+                  sourceSize:MTLSizeMake(self.appTexture.width, self.appTexture.height, 1)//self.window.frame.size.width*self.window.backingScaleFactor
+                   toTexture:self.drawable.texture
+            destinationSlice:0
+            destinationLevel:0
+           destinationOrigin:MTLOriginMake(0, 0, 0)];
+        [blitEncoder endEncoding];
+        [self.commandBuffer presentDrawable:self.drawable];
+        [self.commandBuffer commit];
+    }
+    - (void)windowDidResize:(NSNotification *)notification {
+        NSWindow *window = notification.object;
+        NSView *view = window.contentView;
+
+        if (view.layer) {
+            CAMetalLayer *metalLayer = (CAMetalLayer *)view.layer;
+
+            CGSize drawableSize = [view convertSizeToBacking:view.frame.size];
+            metalLayer.drawableSize = drawableSize;
+
+            MTLTextureDescriptor *depthTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                                                                        width:drawableSize.width
+                                                                                                    height:drawableSize.height
+                                                                                                    mipmapped:NO];
+            depthTextureDesc.storageMode = MTLStorageModePrivate;
+            depthTextureDesc.usage = MTLTextureUsageRenderTarget;
+
+            self.depthTexture = [self.device newTextureWithDescriptor:depthTextureDesc];
+
+            MTLTextureDescriptor *appTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                                        width:drawableSize.width
+                                                                                                    height:drawableSize.height
+                                                                                                    mipmapped:NO];
+            appTextureDesc.storageMode = MTLStorageModePrivate;
+            appTextureDesc.usage = MTLTextureUsageRenderTarget;
+
+            self.appTexture = [self.device newTextureWithDescriptor:appTextureDesc];
+        }
     }
     - (void)controllerInput {
         for (NSValue *controllerValue in self.controllers) {
@@ -315,11 +383,6 @@ struct controller{
             ctrl->buffer.assign(buffer, buffer + bytesRead);
         }
     }
-    - (void)render {
-        [self.commandEncoder endEncoding];
-        [self.commandBuffer presentDrawable:self.drawable];
-        [self.commandBuffer commit];
-    }
     - (void)exit {
         for (NSValue *controllerValue in self.controllers) {
             controller *ctrl = (controller *)[controllerValue pointerValue];
@@ -346,25 +409,6 @@ struct controller{
             [self.window toggleFullScreen:nil];
         } else {
             [self.window toggleFullScreen:nil];
-        }
-    }
-
-    - (void)windowDidResize:(NSNotification *)notification {
-        NSWindow *window = notification.object;
-        NSView *view = window.contentView;
-        
-        if (view.layer) {
-            CAMetalLayer *metalLayer = (CAMetalLayer *)view.layer;
-            CGSize drawableSize = [view convertSizeToBacking:view.frame.size];
-            metalLayer.drawableSize = drawableSize;
-            MTLTextureDescriptor *depthTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
-                                                                                                        width:drawableSize.width
-                                                                                                    height:drawableSize.height
-                                                                                                    mipmapped:NO];
-            depthTextureDesc.storageMode = MTLStorageModePrivate;
-            depthTextureDesc.usage = MTLTextureUsageRenderTarget;
-
-            self.depthTexture = [self.device newTextureWithDescriptor:depthTextureDesc];
         }
     }
 
@@ -423,7 +467,7 @@ struct controller{
 
 
 // #### INPUT ####
-    - (void)updateKeyStates:(NSEvent *)event {
+    - (void)updateInput:(NSEvent *)event {
         if (event.modifierFlags & NSEventModifierFlagCommand) {
             self.keyStates[@(55)] = @(1);
         }else{
@@ -442,8 +486,6 @@ struct controller{
                 self.keyStates[@(keyCode)] = @(0);
             }
         }
-    }
-    - (void)updateMouseStates:(NSEvent *)event {
         if (NSPointInRect([event locationInWindow], [self.window contentView].frame) || (event.type == NSEventTypeLeftMouseUp || event.type == NSEventTypeRightMouseUp || event.type == NSEventTypeOtherMouseUp)) {
             if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeLeftMouseUp) {
                 self.mouseStates[@(0)] = @(event.type == NSEventTypeLeftMouseDown ? 1 : 0);
@@ -455,6 +497,86 @@ struct controller{
                 self.mouseStates[@(event.buttonNumber)] = @(event.type == NSEventTypeOtherMouseDown ? 1 : 0);
             }
         }
+        
+        ImGuiIO &io = ImGui::GetIO();
+        switch (event.type) {
+            case NSEventTypeKeyDown: {
+                bool isKeyDown = (event.type == NSEventTypeKeyDown);
+                
+                auto it = dearImguiKey.find(event.keyCode);
+                if (it != dearImguiKey.end()) {
+                    io.AddKeyEvent(it->second, isKeyDown);
+                }
+
+                NSString *characters = event.characters;
+                if (characters.length > 0) {
+                    io.AddInputCharactersUTF8(characters.UTF8String);
+                }
+                
+                NSEventModifierFlags modifierFlags = event.modifierFlags;
+                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
+                break;
+            }
+            case NSEventTypeKeyUp: {
+                bool isKeyDown = (event.type == NSEventTypeKeyDown);
+                
+                auto it = dearImguiKey.find(event.keyCode);
+                if (it != dearImguiKey.end()) {
+                    io.AddKeyEvent(it->second, isKeyDown);
+                }
+                
+                NSEventModifierFlags modifierFlags = event.modifierFlags;
+                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
+                break;
+            }
+
+            case NSEventTypeFlagsChanged: {
+                NSEventModifierFlags modifierFlags = event.modifierFlags;
+                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
+                break;
+            }
+
+            case NSEventTypeLeftMouseDown:
+            case NSEventTypeLeftMouseUp: {
+                io.MouseDown[0] = (event.type == NSEventTypeLeftMouseDown);
+                break;
+            }
+            case NSEventTypeRightMouseDown:
+            case NSEventTypeRightMouseUp: {
+                io.MouseDown[1] = (event.type == NSEventTypeRightMouseDown);
+                break;
+            }
+            case NSEventTypeOtherMouseDown:
+            case NSEventTypeOtherMouseUp: {
+                io.MouseDown[2] = (event.type == NSEventTypeOtherMouseDown);
+                break;
+            }
+            case NSEventTypeScrollWheel: {
+                io.MouseWheel += event.scrollingDeltaY;
+                io.MouseWheelH += event.scrollingDeltaX;
+                break;
+            }
+            case NSEventTypeMouseMoved:
+            case NSEventTypeLeftMouseDragged:
+            case NSEventTypeRightMouseDragged:
+            case NSEventTypeOtherMouseDragged: {
+                NSPoint locationInWindow = [event locationInWindow];
+                NSRect contentRect = [[[NSApp keyWindow] contentView] frame];
+                io.MousePos = ImVec2(locationInWindow.x, contentRect.size.height - locationInWindow.y);
+                break;
+            }
+            default:
+                break;
+        }
     }
     
     - (BOOL)isWindowFocused {
@@ -462,7 +584,6 @@ struct controller{
     }
 // #### MOUSE AND WINDOWS ####
     - (NSSize)getWindowSize {
-        NSRect visibleFrame = [[NSScreen mainScreen] visibleFrame];
         NSRect frame = self.window.frame;
         return NSMakeSize(frame.size.width, frame.size.height);
     }
@@ -574,6 +695,15 @@ struct controller{
         }
         return false;
     }
+    - (id<MTLCommandBuffer>) getCommandBuffer{
+        return self.commandBuffer;
+    }
+    - (id<MTLRenderCommandEncoder>) getCommandEncoder{
+        return self.commandEncoder;
+    }
+    - (MTLRenderPassDescriptor *) getRenderPass{
+        return self.passDescriptor;
+    }
 
 @end
 
@@ -623,8 +753,7 @@ struct controller{
                                                         dequeue:YES])) {
                 [renderer.app sendEvent:event];
                 [renderer.app updateWindows];
-                [renderer updateKeyStates:event];
-                [renderer updateMouseStates:event];
+                [renderer updateInput:event];
             }
             [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0 / 144.0]];
         }
@@ -633,6 +762,7 @@ struct controller{
     void MetalBento::exit() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            ImGui_ImplMetal_Shutdown();
             [renderer exit];
             [[NSApplication sharedApplication] terminate:nil];
         }
@@ -895,3 +1025,49 @@ struct controller{
             return (__bridge void*)buffer;
         }
     }
+
+
+// #### DEARIMGUI ####
+
+
+
+    void MetalBento::initImgui() {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            IMGUI_CHECKVERSION();
+            ImGuiContext* imguiContext = ImGui::CreateContext();
+            ImGui::SetCurrentContext(imguiContext);
+            ImGui_ImplMetal_Init(device);
+
+            ImGuiIO& io = ImGui::GetIO();
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+        }
+    }
+
+    
+    void MetalBento::imgui() {
+        @autoreleasepool {
+            ImGuiIO& io = ImGui::GetIO();
+            glm::vec2 size = getWindowSize();
+            io.DisplaySize = ImVec2(size.x,size.y);
+
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            ImGui_ImplMetal_NewFrame([renderer getRenderPass]);
+
+            ImGui::NewFrame();
+            static bool show_demo_window = true;
+            ImGui::ShowDemoWindow(&show_demo_window);
+            ImGui::Begin("Example Window");
+            ImGui::Text("metal");
+            ImGui::End();
+            
+            ImGui::Render();
+            ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(),[renderer getCommandBuffer],[renderer getCommandEncoder]);
+        }
+    }
+
+    
+
+
+

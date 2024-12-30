@@ -27,7 +27,7 @@ this is an example that can be built that can be used freely or as a model
 
 */
 
-void processInputs(Bento *bento, glm::vec3 &position, float &angleX, float &angleY, float speed);
+void processInputs(Bento *bento, glm::vec3 &position, glm::vec2 &lastMousePos, float &angleX, float &angleY, float speed);
 
 glm::vec2 rightOffset, leftOffset;
 
@@ -35,6 +35,8 @@ int main() {
     Bento *bento = new Bento();
     bento->init("ベント",1000,1000);
     bento->focus();
+
+    bento->initImgui();
 
     float elapsedTime = 0.0f;
 
@@ -60,7 +62,7 @@ int main() {
     glm::vec3 position(0.0f,1.0f,3.0f);
     glm::vec3 direction(0.0f,0.0f,-1.0f), right(1,0,0), up(0,1,0);
     glm::vec2 displaySize = bento->getDisplaySize();
-    glm::vec2 mousePos = bento->getMousePosition();
+    glm::vec2 mousePos = bento->getMousePosition(), lastMousePos = bento->getMousePosition();
     leftOffset = bento->getControllerAxis(0,GAMEPAD_JOYSTICK_LEFT);
     rightOffset = bento->getControllerAxis(0,GAMEPAD_JOYSTICK_RIGHT);
     glm::vec2 windowSize;
@@ -70,7 +72,7 @@ int main() {
 
         float speed = 0.1;
         
-        processInputs(bento,position,angleX,angleY,speed);
+        processInputs(bento,position,lastMousePos,angleX,angleY,speed);
 
         direction = glm::vec3(cos(angleY) * sin(angleX),sin(angleY),cos(angleY) * cos(angleX));
         right = glm::vec3(sin(angleX - 3.14f/2.0f),0,cos(angleX - 3.14f/2.0f));
@@ -101,6 +103,8 @@ int main() {
             }
         }
 
+        bento->imgui();
+
 
 
         bento->render();
@@ -115,7 +119,7 @@ int main() {
 }
 
 
-void processInputs(Bento *bento, glm::vec3 &position, float &angleX, float &angleY, float speed){
+void processInputs(Bento *bento, glm::vec3 &position, glm::vec2 &lastMousePos, float &angleX, float &angleY, float speed){
     if(bento->getKey(KEY_A))position -= glm::vec3(sin(angleX - 3.14f/2.0f),0,cos(angleX - 3.14f/2.0f)) * speed;
     if(bento->getKey(KEY_S))position -= glm::vec3(sin(angleX),0,cos(angleX)) * speed;
     if(bento->getKey(KEY_D))position += glm::vec3(sin(angleX - 3.14f/2.0f),0,cos(angleX - 3.14f/2.0f)) * speed;
@@ -134,11 +138,19 @@ void processInputs(Bento *bento, glm::vec3 &position, float &angleX, float &angl
         glm::vec2 windowSize = bento->getWindowSize();
         glm::vec2 windowPos = bento->getWindowPos();
 
-        glm::vec2 center = floor(windowPos+glm::vec2(windowSize.x/2,windowSize.y/2));
         glm::vec2 mousePos = bento->getMousePosition();
+
+        /*
+        glm::vec2 center = floor(windowPos+glm::vec2(windowSize.x/2,windowSize.y/2));
         angleX += (center.x-mousePos.x)*0.002;
         angleY += (center.y-mousePos.y)*0.002;
         bento->setMousePosition(center);
+        */
+        angleX += (lastMousePos.x-mousePos.x)*0.002;
+        angleY += (lastMousePos.y-mousePos.y)*0.002;
+        lastMousePos = mousePos;
+    }else{
+        lastMousePos = bento->getMousePosition();
     }
 
     /*glm::vec2 pAxis = bento->getControllerAxis(0,GAMEPAD_JOYSTICK_LEFT)-leftOffset;

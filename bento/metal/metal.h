@@ -2,17 +2,25 @@
 #define METAL_H
 
 #include <iostream>
+#include <unordered_map>
+
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
 #include "../lib/glm/gtc/type_ptr.hpp"
 #include "metaltexture.h"
+
+
+#include "../lib/imgui/imgui.h"
+#include "../lib/imgui/backends/imgui_impl_metal.h"
+#include "../lib/imgui/backends/imgui_impl_osx.h"
+
 
 #ifdef __OBJC__
 #import <Metal/Metal.h>
 #include "metalcommon.h"
 #endif
 
-enum{
+enum {
     //  #####     KEYS     #####
     KEY_UNKNOWN = -1,
     KEY_F1 = 0x7A, KEY_F2 = 0x78, KEY_F3 = 0x63, KEY_F4 = 0x76,
@@ -69,7 +77,71 @@ enum{
 
     //  #####     OTHER     #####
 };
+//because dearimgui doesn't give a keycallback for metal?????????
+static std::unordered_map<int, ImGuiKey> dearImguiKey = {
+    {KEY_F1, ImGuiKey_F1}, {KEY_F2, ImGuiKey_F2}, {KEY_F3, ImGuiKey_F3}, {KEY_F4, ImGuiKey_F4},
+    {KEY_F5, ImGuiKey_F5}, {KEY_F6, ImGuiKey_F6}, {KEY_F7, ImGuiKey_F7}, {KEY_F8, ImGuiKey_F8},
+    {KEY_F9, ImGuiKey_F9}, {KEY_F10, ImGuiKey_F10}, {KEY_F11, ImGuiKey_F11}, {KEY_F12, ImGuiKey_F12},
 
+    {KEY_A, ImGuiKey_A}, {KEY_B, ImGuiKey_B}, {KEY_C, ImGuiKey_C}, {KEY_D, ImGuiKey_D},
+    {KEY_E, ImGuiKey_E}, {KEY_F, ImGuiKey_F}, {KEY_G, ImGuiKey_G}, {KEY_H, ImGuiKey_H},
+    {KEY_I, ImGuiKey_I}, {KEY_J, ImGuiKey_J}, {KEY_K, ImGuiKey_K}, {KEY_L, ImGuiKey_L},
+    {KEY_M, ImGuiKey_M}, {KEY_N, ImGuiKey_N}, {KEY_O, ImGuiKey_O}, {KEY_P, ImGuiKey_P},
+    {KEY_Q, ImGuiKey_Q}, {KEY_R, ImGuiKey_R}, {KEY_S, ImGuiKey_S}, {KEY_T, ImGuiKey_T},
+    {KEY_U, ImGuiKey_U}, {KEY_V, ImGuiKey_V}, {KEY_W, ImGuiKey_W}, {KEY_X, ImGuiKey_X},
+    {KEY_Y, ImGuiKey_Y}, {KEY_Z, ImGuiKey_Z},
+
+    {KEY_0, ImGuiKey_0}, {KEY_1, ImGuiKey_1}, {KEY_2, ImGuiKey_2}, {KEY_3, ImGuiKey_3},
+    {KEY_4, ImGuiKey_4}, {KEY_5, ImGuiKey_5}, {KEY_6, ImGuiKey_6}, {KEY_7, ImGuiKey_7},
+    {KEY_8, ImGuiKey_8}, {KEY_9, ImGuiKey_9},
+
+    {KEY_SPACE, ImGuiKey_Space}, {KEY_TAB, ImGuiKey_Tab}, {KEY_RETURN, ImGuiKey_Enter},
+    {KEY_DELETE, ImGuiKey_Delete}, {KEY_BACKSPACE, ImGuiKey_Backspace}, {KEY_ESCAPE, ImGuiKey_Escape},
+
+    {KEY_UP, ImGuiKey_UpArrow}, {KEY_DOWN, ImGuiKey_DownArrow}, {KEY_LEFT, ImGuiKey_LeftArrow}, {KEY_RIGHT, ImGuiKey_RightArrow},
+
+    {KEY_LEFT_SHIFT, ImGuiKey_LeftShift}, {KEY_RIGHT_SHIFT, ImGuiKey_RightShift},
+    {KEY_LEFT_CONTROL, ImGuiKey_LeftCtrl}, {KEY_RIGHT_CONTROL, ImGuiKey_RightCtrl},
+    {KEY_LEFT_OPTION, ImGuiKey_LeftAlt}, {KEY_RIGHT_OPTION, ImGuiKey_RightAlt},
+    {KEY_LEFT_ALT, ImGuiKey_LeftAlt}, {KEY_RIGHT_ALT, ImGuiKey_RightAlt},
+    {KEY_LEFT_COMMAND, ImGuiKey_LeftSuper}, {KEY_RIGHT_COMMAND, ImGuiKey_RightSuper},
+    {KEY_NUM_LOCK, ImGuiKey_NumLock},
+    {KEY_NUMPAD_0, ImGuiKey_Keypad0},
+    {KEY_NUMPAD_1, ImGuiKey_Keypad1},
+    {KEY_NUMPAD_2, ImGuiKey_Keypad2},
+    {KEY_NUMPAD_3, ImGuiKey_Keypad3},
+    {KEY_NUMPAD_4, ImGuiKey_Keypad4},
+    {KEY_NUMPAD_5, ImGuiKey_Keypad5},
+    {KEY_NUMPAD_6, ImGuiKey_Keypad6},
+    {KEY_NUMPAD_7, ImGuiKey_Keypad7},
+    {KEY_NUMPAD_8, ImGuiKey_Keypad8},
+    {KEY_NUMPAD_9, ImGuiKey_Keypad9},
+    {KEY_NUMPAD_ADD, ImGuiKey_KeypadAdd},
+    {KEY_NUMPAD_SUBTRACT, ImGuiKey_KeypadSubtract},
+    {KEY_NUMPAD_MULTIPLY, ImGuiKey_KeypadMultiply},
+    {KEY_NUMPAD_DIVIDE, ImGuiKey_KeypadDivide},
+    {KEY_EXCLAMATION, ImGuiKey_1},
+    {KEY_AT, ImGuiKey_2},
+    {KEY_HASH, ImGuiKey_3},
+    {KEY_DOLLAR, ImGuiKey_4},
+    {KEY_PERCENT, ImGuiKey_5},
+    {KEY_CARET, ImGuiKey_6},
+    {KEY_AMPERSAND, ImGuiKey_7},
+    {KEY_ASTERISK, ImGuiKey_8},
+    {KEY_LEFT_PARENTHESIS, ImGuiKey_9},
+    {KEY_RIGHT_PARENTHESIS, ImGuiKey_0},
+    {KEY_MINUS, ImGuiKey_Minus},
+    {KEY_EQUALS, ImGuiKey_Equal},
+    {KEY_LEFT_BRACKET, ImGuiKey_LeftBracket},
+    {KEY_RIGHT_BRACKET, ImGuiKey_RightBracket},
+    {KEY_BACKSLASH, ImGuiKey_Backslash},
+    {KEY_SEMICOLON, ImGuiKey_Semicolon},
+    {KEY_QUOTE, ImGuiKey_Apostrophe},
+    {KEY_COMMA, ImGuiKey_Comma},
+    {KEY_PERIOD, ImGuiKey_Period},
+    {KEY_SLASH, ImGuiKey_Slash},
+
+};
 enum JoystickType{
     GAMEPAD_JOYSTICK_LEFT,
     GAMEPAD_JOYSTICK_RIGHT,
@@ -168,6 +240,10 @@ public:
     void bindTexture(class Texture *tex);
     void unbindTexture();
     void exit();
+
+    void initImgui();
+
+    void imgui();
 
 private:
     void *rendererObjC;
