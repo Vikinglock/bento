@@ -1,0 +1,41 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Uniforms
+{
+    float4x4 model;
+    float4x4 view;
+    float4x4 projection;
+};
+
+struct main0_out
+{
+    float3 fragPos [[user(locn0)]];
+    float3 fragNormal [[user(locn1)]];
+    float2 fragUV [[user(locn2)]];
+    float3 viewPos [[user(locn3)]];
+    float3 viewDir [[user(locn4)]];
+    float4 gl_Position [[position]];
+};
+
+struct main0_in
+{
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float2 uv [[attribute(2)]];
+};
+
+vertex main0_out main0(main0_in in [[stage_in]], constant Uniforms& _19 [[buffer(1)]])
+{
+    main0_out out = {};
+    out.gl_Position = ((_19.projection * _19.view) * _19.model) * float4(in.position, 1.0);
+    out.fragPos = float3((_19.model * float4(in.position, 1.0)).xyz);
+    out.fragNormal = in.normal;
+    out.fragUV = in.uv;
+    out.viewPos = -_19.view[3].xyz;
+    out.viewDir = fast::normalize(out.viewPos - out.fragPos);
+    return out;
+}
+

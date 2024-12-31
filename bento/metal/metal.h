@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <string>
 
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
@@ -233,9 +234,16 @@ public:
     void unbindTexture();
     void exit();
 
-    void initImgui();
+    //imgui
 
-    void imgui();
+    void initImgui();
+    void imguiNewFrame();//just realized that dear imgui handles this for me
+
+    void imguiRender();
+
+    //debug
+
+    std::string getFramework();
 
 private:
     void *rendererObjC;

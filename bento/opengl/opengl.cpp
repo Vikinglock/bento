@@ -133,6 +133,8 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     glGenBuffers(1, &uvBuffer);
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 }
 
 void OpenGLBento::focus(){
@@ -213,7 +215,7 @@ void OpenGLBento::draw() {
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projection));
-
+    
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, vertices.size());
     glBindVertexArray(0);
@@ -245,6 +247,7 @@ void OpenGLBento::exit() {
     glfwTerminate();
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shader);
+    std::exit(0);
 }
 
 
@@ -356,21 +359,23 @@ void OpenGLBento::initImgui() {
 }
 
 
-void OpenGLBento::imgui() {
+void OpenGLBento::imguiNewFrame() {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)width, (float)height);
     ImGui_ImplOpenGL3_NewFrame();
-
     ImGui::NewFrame();
-    static bool show_demo_window = true;
-    ImGui::ShowDemoWindow(&show_demo_window);
-    ImGui::Begin("Example Window");
-    ImGui::Text("glfw");
-    ImGui::End();
+}
 
+
+
+void OpenGLBento::imguiRender() {
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+
+std::string OpenGLBento::getFramework(){
+    return "OpenGL";
+}

@@ -1,19 +1,21 @@
 #version 330 core
-layout (location = 0) in vec3 position;
-layout (location = 1) in vec3 normal;
-layout (location = 2) in vec2 uv;
-
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-
+layout(location = 0) in vec3 position;
 out vec3 fragPos;
 out vec3 fragNormal;
+layout(location = 1) in vec3 normal;
 out vec2 fragUV;
-
-void main() {
-    gl_Position = projection * view * model * vec4(position, 1.0);
-    fragPos = vec3(model * vec4(position, 1.0));
+layout(location = 2) in vec2 uv;
+out vec3 viewPos;
+out vec3 viewDir;
+void main()
+{
+    gl_Position = ((projection * view) * model) * vec4(position, 1.0);
+    fragPos = vec3((model * vec4(position, 1.0)).xyz);
     fragNormal = normal;
     fragUV = uv;
+    viewPos = -view[3].xyz;
+    viewDir = normalize(viewPos - fragPos);
 }
