@@ -114,24 +114,31 @@ struct controller{
 
         //[self toggleFullScreen];
 
-
-        NSString *metalFilePath = @"./bento/shaders/shader.metal";
+        NSString *vertMetalPath = @"./bento/shaders/shader.vsmetal";
+        NSString *fragMetalPath = @"./bento/shaders/shader.fsmetal";
         NSError *error = nil;
 
-        NSString *shaderSource = [NSString stringWithContentsOfFile:metalFilePath encoding:NSUTF8StringEncoding error:&error];
+        NSString *vertShaderSource = [NSString stringWithContentsOfFile:vertMetalPath encoding:NSUTF8StringEncoding error:&error];
+        NSString *fragShaderSource = [NSString stringWithContentsOfFile:fragMetalPath encoding:NSUTF8StringEncoding error:&error];
         if (error) {
             NSLog(@"could not load shader file: %@", error);
             return;
         }
 
-        id<MTLLibrary> library = [self.device newLibraryWithSource:shaderSource options:nil error:&error];
-        if (!library) {
-            NSLog(@"could not create metal shader library: %@", error);
+        id<MTLLibrary> vertLibrary = [self.device newLibraryWithSource:vertShaderSource options:nil error:&error];
+        if (!vertLibrary) {
+            NSLog(@"could not create vertex metal shader library: %@", error);
             return;
         }
 
-        id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertex_main"];
-        id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragment_main"];
+        id<MTLLibrary> fragLibrary = [self.device newLibraryWithSource:fragShaderSource options:nil error:&error];
+        if (!fragLibrary) {
+            NSLog(@"could not create fragment metal shader library: %@", error);
+            return;
+        }
+
+        id<MTLFunction> vertexFunction = [vertLibrary newFunctionWithName:@"main0"];
+        id<MTLFunction> fragmentFunction = [fragLibrary newFunctionWithName:@"main0"];
 
         MTLVertexDescriptor *vertexDescriptor = [[MTLVertexDescriptor alloc] init];
 
@@ -300,6 +307,7 @@ struct controller{
         [self.commandEncoder setCullMode:MTLCullModeFront];
         [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
+        
         [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:1];
         [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:2];
         [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:3];
@@ -318,7 +326,7 @@ struct controller{
         [blitEncoder copyFromTexture:self.appTexture
                  sourceSlice:0
                  sourceLevel:0
-                sourceOrigin:MTLOriginMake(1, 2, 0)
+                sourceOrigin:MTLOriginMake(0, 0, 0)
                   sourceSize:MTLSizeMake(self.appTexture.width, self.appTexture.height, 1)//self.window.frame.size.width*self.window.backingScaleFactor
                    toTexture:self.drawable.texture
             destinationSlice:0
@@ -1041,23 +1049,22 @@ struct controller{
     }
 
     
-    void MetalBento::imgui() {
+    void MetalBento::imguiNewFrame() {
         @autoreleasepool {
             ImGuiIO& io = ImGui::GetIO();
             glm::vec2 size = getWindowSize();
             io.DisplaySize = ImVec2(size.x,size.y);
-
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             ImGui_ImplMetal_NewFrame([renderer getRenderPass]);
-
             ImGui::NewFrame();
-            static bool show_demo_window = true;
-            ImGui::ShowDemoWindow(&show_demo_window);
-            ImGui::Begin("Example Window");
-            ImGui::Text("metal");
-            ImGui::End();
-            
+        }
+    }
+
+
+    void MetalBento::imguiRender() {
+        @autoreleasepool {
             ImGui::Render();
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(),[renderer getCommandBuffer],[renderer getCommandEncoder]);
         }
     }
@@ -1065,4 +1072,8 @@ struct controller{
     
 
 
-
+    std::string MetalBento::getFramework(){
+        @autoreleasepool {
+            return "Metal";
+        }
+    }

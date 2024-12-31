@@ -1,0 +1,47 @@
+if you wish to write your own shaders please use the convert.sh over there
+
+just make sure to run
+
+macos:{
+    run:  brew install glslang
+    run:  brew install spirv-cross
+}
+
+linux:{
+    run:  sudo apt install glslang-tools
+    run:  sudo apt install spirv-cross
+}
+
+windows:{
+    go to https://vulkan.lunarg.com/sdk/home
+    install sdk
+    add sdk to path
+    go to https://github.com/KhronosGroup/SPIRV-Cross
+    add binary to path
+}
+
+if you do decide to convert remember to code in glsl version 450
+
+if you don't then you are evil )):<<<
+
+just know that the format is a little like this:
+
+input + output:
+
+layout(location = 0) out vec4 gl_fragoutorsomething;     instead of: out vec4 gl_fragoutorsomething;
+
+layout(location = 0) in vec3 a;     instead of: in vec3 a;
+layout(location = 1) in vec2 b;     instead of: in vec2 b;
+
+uniforms (textures):
+
+layout(set = 0, binding = 0) uniform sampler2D tex;     instead of: uniform sampler2D tex;
+
+uniforms (floats and stuff):
+
+layout(set = 0, binding = 1) uniform abcd {     instead of: uniform float sheenStrength;
+    float sheenStrength;                                    uniform vec3 sheenColor;
+    vec3 sheenColor;
+};
+
+the rest is just standard glsl 330 core
