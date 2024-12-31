@@ -11,6 +11,8 @@ class Bento : public OpenGLBento {};
 class Bento : public OpenGLBento {};
 #endif
 
+#define pi 3.1415926535
+
 //also very sorry if this is a really unorthodox method of drawing stuff or handling graphics
 
 void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals);

@@ -36,9 +36,9 @@ also any games made on this engine will NEVER need to pay extra fees because it'
 
 ### lightweight
 
-~~bento is currently only about 20MB with most of it being other libraries like the bullet physics engine and opengl~~
+bento is currently only about 30MB with most of it being other libraries like the bullet physics engine or dear imgui
 
-~~also the example runs at 60+ fps only taking 45 MB ram on my computer~~
+also the example runs at 60+ fps only taking 52-150 MB ram on my computer
 
 holy christ remind me to optimize it at some point
 

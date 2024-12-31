@@ -43,14 +43,18 @@ int main() {
     std::vector<Object*> objects;
     objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj"));
 
-    for(int i = -10; i < 10; i+=2)
-        for(int j = -10; j < 50; j+=2)
+
+    for(int i = -50; i < 50; i+=2)
+        for(int j = -50; j < 50; j+=2)
                 objects.emplace_back(new Object("sword",glm::vec3(i,0,j),"resources/sword.obj"));
 
     Texture *swordTex = new Texture("resources/sword.png");
 
     Mesh *groundMesh = new Mesh("resources/ground.obj");
-    Texture *groundTex = new Texture("resources/ground.png");
+    Texture *groundTex = new Texture("resources/grass.png");
+
+
+    objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
     
 
 
@@ -67,6 +71,11 @@ int main() {
     rightOffset = bento->getControllerAxis(0,GAMEPAD_JOYSTICK_RIGHT);
     glm::vec2 windowSize;
     bento->setMousePosition(glm::vec2(500,500));
+
+    //dear imgui
+
+    bool showDemoWindow = true;
+
     while (bento->isRunning()){
         bento->predraw();
 
@@ -94,7 +103,7 @@ int main() {
         bento->setNormals(groundMesh->getNormalBuffer());
         bento->setUvs(groundMesh->getUVBuffer());
         bento->bindTexture(groundTex);
-
+ 
         for(int i = -8; i < 9; i++){
             for(int j = -8; j < 9; j++){
                 model = glm::scale(glm::translate(glm::mat4(1.0),glm::vec3(i*2,-1,j*2)),glm::vec3(0.005,0.005,0.005));
@@ -103,8 +112,46 @@ int main() {
             }
         }
 
-        bento->imgui();
 
+        bento->imguiNewFrame();
+        ImGui::Begin("aaa");
+
+        if(showDemoWindow)ImGui::ShowDemoWindow(&showDemoWindow);
+        ImGui::Text("const char* text");
+        ImGui::Text("framework: %s",bento->getFramework().c_str());
+        if(ImGui::Button("amnogus")){bento->exit();}
+        if(ImGui::Button(showDemoWindow?"show demo? true":"show demo? false")){showDemoWindow = showDemoWindow?false:true;}
+
+
+        float centerX = windowSize.x / 2.0f;
+        float centerY = windowSize.y / 2.0f;
+        float crosshairSize = 10.0f;
+        float lineWidth = 1.5f;
+        float gapSize = 4.0f;
+        float dotSize = 2.0f;
+        bool dot = true;
+        bool lines = false;
+        ImDrawList* drawList = ImGui::GetBackgroundDrawList();
+        if(lines){
+            drawList->AddLine({ centerX - crosshairSize - gapSize, centerY }, { centerX - gapSize, centerY }, ImColor(255, 255, 255), lineWidth);
+            drawList->AddLine({ centerX + gapSize, centerY }, { centerX + crosshairSize + gapSize, centerY }, ImColor(255, 255, 255), lineWidth);
+            drawList->AddLine({ centerX, centerY - crosshairSize - gapSize }, { centerX, centerY - gapSize }, ImColor(255, 255, 255), lineWidth);
+            drawList->AddLine({ centerX, centerY + gapSize }, { centerX, centerY + crosshairSize + gapSize }, ImColor(255, 255, 255), lineWidth);
+        }
+        if(dot)drawList->AddCircleFilled({centerX,centerY}, dotSize, ImColor(255, 255, 255));
+
+        drawList->AddText({10,10},ImColor(255,255,255),(std::to_string(position.x)+" "+std::to_string(position.y)+" "+std::to_string(position.z)).c_str());
+        drawList->AddText({10,30},ImColor(255,255,255),(std::to_string(direction.x)+" "+std::to_string(direction.y)+" "+std::to_string(direction.z)).c_str());
+        centerX = windowSize.x-120;
+        centerY = windowSize.y-120;
+        drawList->AddLine(ImVec2(centerX,centerY),ImVec2(centerX,centerY+100*sin(angleY-pi/2)),ImColor(255,0,0),2);
+        drawList->AddLine(ImVec2(centerX,centerY),ImVec2(centerX+100*cos(-angleX),centerY+100*sin(-angleX)*cos(angleY-pi/2)),ImColor(0,255,0),2);
+        drawList->AddLine(ImVec2(centerX,centerY),ImVec2(centerX+100*cos(-angleX+pi/2),centerY+100*sin(-angleX+pi/2)*cos(angleY-pi/2)),ImColor(0,0,255),2);
+        drawList->AddEllipse({centerX,centerY},ImVec2(10,10),100*cos(angleY-pi/2),ImColor(150,150,150));
+        drawList->AddCircle({centerX,centerY},100,ImColor(200,200,200));
+
+        ImGui::End();
+        bento->imguiRender();
 
 
         bento->render();
