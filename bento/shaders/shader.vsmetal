@@ -3,11 +3,12 @@
 
 using namespace metal;
 
-struct Mvp
+struct Unis
 {
     float4x4 model;
     float4x4 view;
     float4x4 projection;
+    float3 tpos;
 };
 
 struct main0_out
@@ -16,7 +17,7 @@ struct main0_out
     float3 fragNormal [[user(locn1)]];
     float2 fragUV [[user(locn2)]];
     float3 viewPos [[user(locn3)]];
-    float3 viewDir [[user(locn4)]];
+    float3 pos [[user(locn4)]];
     float4 gl_Position [[position]];
 };
 
@@ -27,16 +28,16 @@ struct main0_in
     float2 uv [[attribute(2)]];
 };
 
-vertex main0_out main0(main0_in in [[stage_in]], constant Mvp& _19 [[buffer(4)]])
+vertex main0_out main0(main0_in in [[stage_in]], constant Unis& _20 [[buffer(4)]])
 {
     main0_out out = {};
-    out.gl_Position = ((_19.projection * _19.view) * _19.model) * float4(in.position, 1.0);
-    out.fragPos = float3((_19.model * float4(in.position, 1.0)).xyz);
+    out.gl_Position = ((_20.projection * _20.view) * _20.model) * float4(in.position, 1.0);
+    out.fragPos = float3((_20.model * float4(in.position, 1.0)).xyz);
     out.fragNormal = in.normal;
     out.fragUV.x = in.uv.x;
     out.fragUV.y = in.uv.y;
-    out.viewPos = -_19.view[3].xyz;
-    out.viewDir = fast::normalize(out.viewPos - out.fragPos);
+    out.viewPos = -_20.view[3].xyz;
+    out.pos = _20.tpos;
     return out;
 }
 
