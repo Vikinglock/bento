@@ -57,7 +57,6 @@ enum{
     KEY_UP = GLFW_KEY_UP, KEY_DOWN = GLFW_KEY_DOWN, KEY_LEFT = GLFW_KEY_LEFT, KEY_RIGHT = GLFW_KEY_RIGHT,
     KEY_LEFT_SHIFT = GLFW_KEY_LEFT_SHIFT, KEY_LEFT_CONTROL = GLFW_KEY_LEFT_CONTROL, KEY_LEFT_OPTION = GLFW_KEY_LEFT_ALT, KEY_LEFT_ALT = GLFW_KEY_LEFT_ALT, KEY_LEFT_COMMAND = 0x37,
     KEY_RIGHT_SHIFT = GLFW_KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL = GLFW_KEY_RIGHT_CONTROL, KEY_RIGHT_OPTION = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_ALT = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_COMMAND = 0x36,
-    KEY_VOLUME_UP = 0x48, KEY_VOLUME_DOWN = 0x49, KEY_MUTE = 0x4A,
     //  #####     MOUSE BUTTONS     #####
     MOUSE_LEFT = GLFW_MOUSE_BUTTON_1,
     MOUSE_RIGHT = GLFW_MOUSE_BUTTON_3,
@@ -169,6 +168,7 @@ public:
     void focus();
     bool getKey(int key);
     bool getMouse(int mouse);
+    double getScroll(int wheel);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();

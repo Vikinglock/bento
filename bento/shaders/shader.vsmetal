@@ -3,7 +3,7 @@
 
 using namespace metal;
 
-struct Uniforms
+struct Mvp
 {
     float4x4 model;
     float4x4 view;
@@ -27,13 +27,14 @@ struct main0_in
     float2 uv [[attribute(2)]];
 };
 
-vertex main0_out main0(main0_in in [[stage_in]], constant Uniforms& _19 [[buffer(1)]])
+vertex main0_out main0(main0_in in [[stage_in]], constant Mvp& _19 [[buffer(4)]])
 {
     main0_out out = {};
     out.gl_Position = ((_19.projection * _19.view) * _19.model) * float4(in.position, 1.0);
     out.fragPos = float3((_19.model * float4(in.position, 1.0)).xyz);
     out.fragNormal = in.normal;
-    out.fragUV = in.uv;
+    out.fragUV.x = in.uv.x;
+    out.fragUV.y = in.uv.y;
     out.viewPos = -_19.view[3].xyz;
     out.viewDir = fast::normalize(out.viewPos - out.fragPos);
     return out;
