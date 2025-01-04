@@ -15,7 +15,8 @@ void main()
     gl_Position = ((projection * view) * model) * vec4(position, 1.0);
     fragPos = vec3((model * vec4(position, 1.0)).xyz);
     fragNormal = normal;
-    fragUV = uv;
+    fragUV.x = uv.x;
+    fragUV.y = uv.y;
     viewPos = -view[3].xyz;
     viewDir = normalize(viewPos - fragPos);
 }

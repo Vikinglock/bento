@@ -22,8 +22,7 @@ case "$3" in
         if [ "$#" -ne 5 ]; then usage; fi
         spirv-cross "vert.spv" --msl --output $4 || exit 1
         spirv-cross "frag.spv" --msl --output $5 || exit 1
-        sed -i '' 's/buffer(0)/buffer(1)/g' $4
-        sed -i '' 's/buffer(0)/buffer(1)/g' $5
+        ./bento/shaders/bindfix $1 $4 || clang++ bento/shaders/bindingsfix.cpp -o bento/shaders/bindfix ; ./bento/shaders/bindfix $1 $4
         ;;
     --opengl330)
         if [ "$#" -ne 5 ]; then usage; fi
@@ -34,8 +33,7 @@ case "$3" in
         if [ "$#" -ne 5 ]; then usage; fi
         spirv-cross "vert.spv" --version 330 --output $4 || exit 1
         spirv-cross "frag.spv" --version 330 --output $5 || exit 1
-        clang++ bento/shaders/330to330core.cpp -std=c++11 -o 330c || echo "could not find a required library script file thing (for conversion), try running it in a folder where bento/ is present"
-        ./330c $4 $5
+        ./bento/shaders/330c $4 $5 || clang++ bento/shaders/330to330core.cpp -std=c++11 -o bento/shaders/330c || echo "could not find a required library script file thing (for conversion), try running it in a folder where bento/ is present"
         ;;
     --vulkan)
         if [ "$#" -ne 4 ]; then usage; fi
