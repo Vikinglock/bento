@@ -43,6 +43,8 @@ struct controller{
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
 @property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
+@property (nonatomic) double wheelX;
+@property (nonatomic) double wheelY;
 @property (nonatomic) MTLViewport viewport;
 @property (nonatomic) NSInteger vertCount;
 @property (nonatomic) NSInteger normCount;
@@ -67,6 +69,7 @@ struct controller{
         device = MTLCreateSystemDefaultDevice();
         self.commandQueue = [self.device newCommandQueue];
         self.shouldClose = NO;
+
         self.model = (float *)malloc(sizeof(float) * 16);
         self.view = (float *)malloc(sizeof(float) * 16);
         self.projection = (float *)malloc(sizeof(float) * 16);
@@ -87,7 +90,7 @@ struct controller{
 
         [self.window setFrameOrigin:NSMakePoint(x,([NSScreen mainScreen].frame.size.height-self.window.frame.size.height)-y)];
 
-        [self.window setTitle:@(title)];//"ベント"];
+        [self.window setTitle:@(title)];
 
         [self.window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
 
@@ -147,19 +150,19 @@ struct controller{
         vertexDescriptor.attributes[0].bufferIndex = 0;
         vertexDescriptor.attributes[1].format = MTLVertexFormatFloat3;
         vertexDescriptor.attributes[1].offset = 0;
-        vertexDescriptor.attributes[1].bufferIndex = 2;
+        vertexDescriptor.attributes[1].bufferIndex = 1;
         vertexDescriptor.attributes[2].format = MTLVertexFormatFloat2;
         vertexDescriptor.attributes[2].offset = 0;
-        vertexDescriptor.attributes[2].bufferIndex = 3;
+        vertexDescriptor.attributes[2].bufferIndex = 2;
         vertexDescriptor.layouts[0].stride = sizeof(float) * 3;
-        vertexDescriptor.layouts[2].stride = sizeof(float) * 3;
-        vertexDescriptor.layouts[3].stride = sizeof(float) * 2;
+        vertexDescriptor.layouts[1].stride = sizeof(float) * 3;
+        vertexDescriptor.layouts[2].stride = sizeof(float) * 2;
         vertexDescriptor.layouts[0].stepRate = 1;
+        vertexDescriptor.layouts[1].stepRate = 1;
         vertexDescriptor.layouts[2].stepRate = 1;
-        vertexDescriptor.layouts[3].stepRate = 1;
         vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+        vertexDescriptor.layouts[1].stepFunction = MTLVertexStepFunctionPerVertex;
         vertexDescriptor.layouts[2].stepFunction = MTLVertexStepFunctionPerVertex;
-        vertexDescriptor.layouts[3].stepFunction = MTLVertexStepFunctionPerVertex;
 
 
         MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
@@ -308,12 +311,12 @@ struct controller{
         [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
         
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:1];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:2];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:3];
         [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
-        [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:2];
-        [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:3];
+        [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
+        [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
+        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:4];
+        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:5];
+        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:6];
 
         [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
         [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
@@ -335,6 +338,9 @@ struct controller{
         [blitEncoder endEncoding];
         [self.commandBuffer presentDrawable:self.drawable];
         [self.commandBuffer commit];
+
+        self.wheelY = 0;
+        self.wheelX = 0;
     }
     - (void)windowDidResize:(NSNotification *)notification {
         NSWindow *window = notification.object;
@@ -476,24 +482,25 @@ struct controller{
 
 // #### INPUT ####
     - (void)updateInput:(NSEvent *)event {
-        if (event.modifierFlags & NSEventModifierFlagCommand) {
-            self.keyStates[@(55)] = @(1);
-        }else{
-            self.keyStates[@(55)] = @(0);
-        }
-        if (event.modifierFlags & NSEventModifierFlagControl) {
-            self.keyStates[@(59)] = @(1);
-        } else {
-            self.keyStates[@(59)] = @(0);
-        }
         if (event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp) {
-            NSUInteger keyCode = event.keyCode;
-            if (event.type == NSEventTypeKeyDown) {
-                self.keyStates[@(keyCode)] = @(1);
-            } else if (event.type == NSEventTypeKeyUp) {
-                self.keyStates[@(keyCode)] = @(0);
-            }
+            self.keyStates[@(event.keyCode)] = (event.type == NSEventTypeKeyDown)?@(YES):@(NO);
         }
+        //command  0x10
+        //alt/option  0x08
+        //control  0x04
+        //shift  0x02
+
+        if (event.type == NSEventTypeFlagsChanged) {
+            self.keyStates[@(0x38)] = ((event.modifierFlags & 0x2) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x39)] = ((event.modifierFlags & 0x4) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x3B)] = ((event.modifierFlags & 0x1) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x3C)] = ((event.modifierFlags & 0x2000) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x3A)] = ((event.modifierFlags & 0x20) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x3D)] = ((event.modifierFlags & 0x40) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x37)] = ((event.modifierFlags & 0x8) != 0)?@(YES):@(NO);
+            self.keyStates[@(0x36)] = ((event.modifierFlags & 0x10) != 0)?@(YES):@(NO);
+        }
+
         if (NSPointInRect([event locationInWindow], [self.window contentView].frame) || (event.type == NSEventTypeLeftMouseUp || event.type == NSEventTypeRightMouseUp || event.type == NSEventTypeOtherMouseUp)) {
             if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeLeftMouseUp) {
                 self.mouseStates[@(0)] = @(event.type == NSEventTypeLeftMouseDown ? 1 : 0);
@@ -531,20 +538,18 @@ struct controller{
                     }
                 }
                 
-                NSEventModifierFlags modifierFlags = event.modifierFlags;
-                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
-                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
-                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
-                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
+                io.AddKeyEvent(ImGuiMod_Shift, (event.modifierFlags & NSEventModifierFlagShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Ctrl,  (event.modifierFlags & NSEventModifierFlagControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt,   (event.modifierFlags & NSEventModifierFlagOption) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (event.modifierFlags & NSEventModifierFlagCommand) != 0);
                 break;
             }
 
             case NSEventTypeFlagsChanged: {
-                NSEventModifierFlags modifierFlags = event.modifierFlags;
-                io.AddKeyEvent(ImGuiMod_Shift, (modifierFlags & NSEventModifierFlagShift) != 0);
-                io.AddKeyEvent(ImGuiMod_Ctrl, (modifierFlags & NSEventModifierFlagControl) != 0);
-                io.AddKeyEvent(ImGuiMod_Alt, (modifierFlags & NSEventModifierFlagOption) != 0);
-                io.AddKeyEvent(ImGuiMod_Super, (modifierFlags & NSEventModifierFlagCommand) != 0);
+                io.AddKeyEvent(ImGuiMod_Shift, (event.modifierFlags & NSEventModifierFlagShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Ctrl,  (event.modifierFlags & NSEventModifierFlagControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt,   (event.modifierFlags & NSEventModifierFlagOption) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (event.modifierFlags & NSEventModifierFlagCommand) != 0);
                 break;
             }
 
@@ -566,6 +571,8 @@ struct controller{
             case NSEventTypeScrollWheel: {
                 io.MouseWheel += event.scrollingDeltaY;
                 io.MouseWheelH += event.scrollingDeltaX;
+                self.wheelY = event.scrollingDeltaY;
+                self.wheelX = event.scrollingDeltaX;
                 break;
             }
             case NSEventTypeMouseMoved:
@@ -698,6 +705,11 @@ struct controller{
         }
         return false;
     }
+    - (double) getScroll:(int)wheel {
+        if(wheel == 0)return self.wheelY;
+        if(wheel == 1)return self.wheelX;
+        return 0;
+    }
     - (id<MTLCommandBuffer>) getCommandBuffer{
         return self.commandBuffer;
     }
@@ -731,7 +743,6 @@ struct controller{
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer draw];
-            
             if(getKey(KEY_LEFT_CONTROL)&&getKey(KEY_LEFT_COMMAND)&&getKey(KEY_F)&&fullscreenable){
                 toggleFullscreen();
                 fullscreenable = false;
@@ -844,21 +855,21 @@ struct controller{
     }
 
 
-    void MetalBento::setModelMatrix(const glm::mat4& m) {
+    void MetalBento::setModelMatrix(const glm::mat4 m) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setModelMatrix:(float*)&m];
         }
     }
 
-    void MetalBento::setViewMatrix(const glm::mat4& v) {
+    void MetalBento::setViewMatrix(const glm::mat4 v) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setViewMatrix:(float*)&v];
         }
     }
 
-    void MetalBento::setProjectionMatrix(const glm::mat4& p) {
+    void MetalBento::setProjectionMatrix(const glm::mat4 p) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setProjectionMatrix:(float*)&p];
@@ -879,16 +890,7 @@ struct controller{
     bool MetalBento::getKey(int key) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            
-            switch ([renderer.keyStates[@(key)] integerValue]) {
-                case 1:
-                    return true;
-                case 0:
-                    return false;
-                default:
-                    break;
-            }
-            return false;
+            return [renderer.keyStates[@(key)] integerValue];
         }
     }
 
@@ -906,6 +908,13 @@ struct controller{
                     break;
             }
             return false;
+        }
+    }
+
+    double MetalBento::getScroll(int wheel){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return [renderer getScroll:wheel];
         }
     }
 

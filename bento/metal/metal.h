@@ -54,12 +54,6 @@ enum {
     KEY_SPACE = 0x31, KEY_TAB = 0x30, KEY_RETURN = 0x24,
     KEY_DELETE = 0x75, KEY_ESCAPE = 0x35, KEY_BACKSPACE = 0x33,
 
-    KEY_EXCLAMATION = 0x12, KEY_AT = 0x13, KEY_HASH = 0x14, KEY_DOLLAR = 0x15, KEY_PERCENT = 0x17,
-    KEY_CARET = 0x16,
-    KEY_AMPERSAND = 0x1A,
-    KEY_ASTERISK = 0x1C,
-    KEY_LEFT_PARENTHESIS = 0x19,
-    KEY_RIGHT_PARENTHESIS = 0x1D,
     KEY_MINUS = 0x1B,
     KEY_EQUALS = 0x18,
     KEY_LEFT_BRACKET = 0x1E,
@@ -74,7 +68,6 @@ enum {
     KEY_UP = 0x7E, KEY_DOWN = 0x7D, KEY_LEFT = 0x7B, KEY_RIGHT = 0x7C,
     KEY_LEFT_SHIFT = 0x38, KEY_LEFT_CONTROL = 0x3B, KEY_LEFT_OPTION = 0x3A, KEY_LEFT_ALT = 0x3A, KEY_LEFT_COMMAND = 0x37,
     KEY_RIGHT_SHIFT = 0x39, KEY_RIGHT_CONTROL = 0x3C, KEY_RIGHT_OPTION = 0x3D, KEY_RIGHT_ALT = 0x3D, KEY_RIGHT_COMMAND = 0x36,
-    KEY_VOLUME_UP = 0x48, KEY_VOLUME_DOWN = 0x49, KEY_MUTE = 0x4A,
     //  #####     MOUSE BUTTONS     #####
     MOUSE_LEFT = 0x0,
     MOUSE_RIGHT = 0x1,
@@ -213,9 +206,9 @@ public:
     void setVertices(vertexBuffer vertices);
     void setNormals(normalBuffer normals);
     void setUvs(uvBuffer uvs);
-    void setModelMatrix(const glm::mat4& m);
-    void setViewMatrix(const glm::mat4& v);
-    void setProjectionMatrix(const glm::mat4& p);
+    void setModelMatrix(const glm::mat4 m);
+    void setViewMatrix(const glm::mat4 v);
+    void setProjectionMatrix(const glm::mat4 p);
     glm::vec2 getWindowSize();
     glm::vec2 getWindowPos();
     void setWindowPos(glm::vec2 pos);
@@ -223,6 +216,7 @@ public:
     void focus();
     bool getKey(int key);
     bool getMouse(int mouse);
+    double getScroll(int wheel);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
     glm::vec2 getMousePosition();

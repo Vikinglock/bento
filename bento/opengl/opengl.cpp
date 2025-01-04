@@ -19,6 +19,8 @@ bool shouldClose;
 int vertCount = 0;
 int normCount = 0;
 int uvCount = 0;
+int wheelX = 0;
+int wheelY = 0;
 
 int buttonCount;
 const unsigned char* buttons[GLFW_JOYSTICK_LAST];
@@ -225,21 +227,10 @@ void OpenGLBento::render() {
     glfwSwapBuffers(window);
 }
 
-void OpenGLBento::setModelMatrix(const glm::mat4& m) {
-    model = m;
-}
-
-void OpenGLBento::setViewMatrix(const glm::mat4& v) {
-    view = v;
-}
-
-void OpenGLBento::setProjectionMatrix(const glm::mat4& p) {
-    projection = p;
-}
-
-bool OpenGLBento::isRunning(){
-    return !glfwWindowShouldClose(window);
-}
+void OpenGLBento::setModelMatrix(const glm::mat4& m) {model = m;}
+void OpenGLBento::setViewMatrix(const glm::mat4& v) {view = v;}
+void OpenGLBento::setProjectionMatrix(const glm::mat4& p) {projection = p;}
+bool OpenGLBento::isRunning(){return !glfwWindowShouldClose(window);}
 
 // #### INPUT ####
 void OpenGLBento::exit() {
@@ -263,6 +254,13 @@ bool OpenGLBento::getKey(int key) {
 }
 bool OpenGLBento::getMouse(int mouse) {
     return glfwGetMouseButton(window, mouse) == GLFW_PRESS;
+}
+
+
+double OpenGLBento::getScroll(int wheel){
+    if(wheel == 0)return wheelY;
+    if(wheel == 1)return wheelX;
+    return 0;
 }
 
 // #### MOUSE AND WINDOWS ####
