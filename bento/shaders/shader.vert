@@ -1,5 +1,6 @@
 #version 450
 //this is so sad
+#define MAX_LIGHTS 50
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
@@ -9,12 +10,13 @@ layout(location = 0) out vec3 fragPos;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec2 fragUV;
 layout(location = 3) out vec3 viewPos;
-layout(location = 4) out vec3 viewDir;
+layout(location = 4) out vec3 pos;
 
-layout(set = 0, binding = 4) uniform Mvp {
+layout(set = 0, binding = 4) uniform Unis {
     mat4 model;
     mat4 view;
     mat4 projection;
+    vec3 tpos;
 };
 
 void main() {
@@ -24,6 +26,6 @@ void main() {
     fragUV.x = uv.x;
     fragUV.y = uv.y;
     viewPos = -view[3].xyz;
-    //viewDir = -view[2].xyz;
-    viewDir = normalize(viewPos - fragPos);
+    pos = tpos;
+    //viewDir = normalize(-view[2].xyz);//(vector twixt 0 and 1 (0,1,0 when looking up 1,0,0 forth 0,0,1 right))
 }

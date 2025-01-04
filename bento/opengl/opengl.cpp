@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 
+#define MAX_LIGHTS 50
 
 enum {
     KeyStateNone,
@@ -21,6 +22,10 @@ int normCount = 0;
 int uvCount = 0;
 int wheelX = 0;
 int wheelY = 0;
+
+int lightCount = 0;
+
+Light lights[MAX_LIGHTS];
 
 int buttonCount;
 const unsigned char* buttons[GLFW_JOYSTICK_LAST];
@@ -116,9 +121,10 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     }
 
     shader = createShaderProgram("bento/shaders/shader.vs", "bento/shaders/shader.fs");
-    modelLocation = glGetUniformLocation(shader, "model");
-    viewLocation = glGetUniformLocation(shader, "view");
-    projectionLocation = glGetUniformLocation(shader, "projection");
+    modelLoc = glGetUniformLocation(shader, "model");
+    viewLoc = glGetUniformLocation(shader, "view");
+    projectionLoc = glGetUniformLocation(shader, "projection");
+    positionLoc = glGetUniformLocation(shader, "tpos");
 
 
     for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
@@ -214,9 +220,11 @@ void OpenGLBento::predraw() {
 }
 
 void OpenGLBento::draw() {
-    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+    glUniform3f(positionLoc,pos.x,pos.y,pos.z);
     
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, vertices.size());
@@ -228,7 +236,7 @@ void OpenGLBento::render() {
 }
 
 void OpenGLBento::setModelMatrix(const glm::mat4& m) {model = m;}
-void OpenGLBento::setViewMatrix(const glm::mat4& v) {view = v;}
+void OpenGLBento::setViewMatrix(const glm::mat4& v,const glm::vec3 p) {view = v;pos = p;}
 void OpenGLBento::setProjectionMatrix(const glm::mat4& p) {projection = p;}
 bool OpenGLBento::isRunning(){return !glfwWindowShouldClose(window);}
 
@@ -366,6 +374,9 @@ void OpenGLBento::imguiNewFrame() {
     ImGui::NewFrame();
 }
 
+void OpenGLBento::addLight(const Light& light){
+    lights[lightCount++] = light;
+}
 
 
 void OpenGLBento::imguiRender() {

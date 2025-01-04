@@ -193,6 +193,12 @@ public:
     Texture(const char* filepath) : MetalTexture(filepath) {}
 };
 
+struct Light {
+    glm::vec3 position;
+    glm::vec3 color;
+    float lightLevel;
+};
+
 class MetalBento {
 public:
     void init(const char *title, int w, int h, int x = 0, int y = 0);
@@ -207,7 +213,7 @@ public:
     void setNormals(normalBuffer normals);
     void setUvs(uvBuffer uvs);
     void setModelMatrix(const glm::mat4 m);
-    void setViewMatrix(const glm::mat4 v);
+    void setViewMatrix(const glm::mat4 v,const glm::vec3 p);
     void setProjectionMatrix(const glm::mat4 p);
     glm::vec2 getWindowSize();
     glm::vec2 getWindowPos();
@@ -226,6 +232,7 @@ public:
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
     void unbindTexture();
+    void addLight(const Light& light);
     void exit();
 
     //imgui

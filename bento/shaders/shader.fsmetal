@@ -1,7 +1,28 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
 #include <metal_stdlib>
 #include <simd/simd.h>
 
 using namespace metal;
+
+struct Light
+{
+    float3 position;
+    float constant0;
+    float linear;
+    float quadratic;
+    float3 ambient;
+    float3 diffuse;
+    float3 specular;
+};
+
+struct Unis
+{
+    float4x4 model;
+    float4x4 view;
+    float4x4 projection;
+    float3 tpos;
+};
 
 struct main0_out
 {
@@ -10,14 +31,50 @@ struct main0_out
 
 struct main0_in
 {
+    float3 fragPos [[user(locn0)]];
     float3 fragNormal [[user(locn1)]];
     float2 fragUV [[user(locn2)]];
+    float3 pos [[user(locn4)]];
 };
+
+static inline __attribute__((always_inline))
+float3 calculateLighting(thread const Light& light, thread float& specular, thread float3& fragPos, thread float3& fragNormal, thread float3& viewDir, texture2d<float> tex, sampler texSmplr, thread float2& fragUV)
+{
+    float3 lightDir = fast::normalize(light.position - fragPos);
+    float diff = fast::max(dot(fragNormal, lightDir), 0.0);
+    float3 reflectDir = reflect(-lightDir, fragNormal);
+    float spec = powr(fast::max(dot(viewDir, reflectDir), 0.0), specular);
+    float _distance = length(light.position - fragPos);
+    float attenuation = 1.0 / ((light.constant0 + (light.linear * _distance)) + (light.quadratic * (_distance * _distance)));
+    float3 text = float3(tex.sample(texSmplr, fragUV).xyz);
+    float3 ambient = light.ambient * text;
+    float3 diffuse = (light.diffuse * diff) * text;
+    float3 specular_1 = (light.specular * spec) * text;
+    ambient *= attenuation;
+    diffuse *= attenuation;
+    specular_1 *= attenuation;
+    return (ambient + diffuse) + specular_1;
+}
 
 fragment main0_out main0(main0_in in [[stage_in]], texture2d<float> tex [[texture(0)]], sampler texSmplr [[sampler(0)]])
 {
     main0_out out = {};
-    out.fragColor = float4(tex.sample(texSmplr, in.fragUV).xyz * ((dot(in.fragNormal, float3(0.0, 1.0, 0.0)) * 0.5) + 0.5), 1.0);
+    float specular = 25.0;
+    float t = 0.4000000059604644775390625;
+    float3 finalColor = float3(dot(in.fragNormal, float3(sin(t), cos(t), 0.0))) * 0.20000000298023223876953125;
+    float3 viewDir = fast::normalize(in.pos - in.fragPos);
+    Light light;
+    light.position = float3(1.0, 5.0, 0.0);
+    light.ambient = float3(0.0, 1.0, 0.0);
+    light.diffuse = float3(0.0, 1.0, 0.0);
+    light.specular = float3(0.60000002384185791015625, 1.0, 0.60000002384185791015625);
+    light.constant0 = 0.100000001490116119384765625;
+    light.linear = 0.00999999977648258209228515625;
+    light.quadratic = 0.100000001490116119384765625;
+    Light param = light;
+    finalColor += calculateLighting(param, specular, in.fragPos, in.fragNormal, viewDir, tex, texSmplr, in.fragUV);
+    float3 textureColor = tex.sample(texSmplr, in.fragUV).xyz;
+    out.fragColor = float4(finalColor * textureColor, 1.0);
     return out;
 }
 
