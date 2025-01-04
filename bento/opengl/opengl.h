@@ -59,8 +59,8 @@ enum{
     KEY_RIGHT_SHIFT = GLFW_KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL = GLFW_KEY_RIGHT_CONTROL, KEY_RIGHT_OPTION = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_ALT = GLFW_KEY_RIGHT_ALT, KEY_RIGHT_COMMAND = 0x36,
     //  #####     MOUSE BUTTONS     #####
     MOUSE_LEFT = GLFW_MOUSE_BUTTON_1,
-    MOUSE_RIGHT = GLFW_MOUSE_BUTTON_3,
-    MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_2,
+    MOUSE_RIGHT = GLFW_MOUSE_BUTTON_2,
+    MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_3,
     MOUSE_X1 = GLFW_MOUSE_BUTTON_4,
     MOUSE_X2 = GLFW_MOUSE_BUTTON_5,
 
@@ -144,6 +144,11 @@ public:
     Texture(const char* filepath) : OpenGLTexture(filepath) {}
 };
 
+struct Light {
+    glm::vec3 position;
+    glm::vec3 color;
+    float lightLevel;
+};
 
 class OpenGLBento {
 public:
@@ -159,7 +164,7 @@ public:
     void setNormals(normalBuffer normals);
     void setUvs(uvBuffer uvs);
     void setProjectionMatrix(const glm::mat4& m);
-    void setViewMatrix(const glm::mat4& v);
+    void setViewMatrix(const glm::mat4& v,const glm::vec3 p);
     void setModelMatrix(const glm::mat4& p);
     glm::vec2 getWindowSize();
     glm::vec2 getWindowPos();
@@ -178,6 +183,7 @@ public:
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
     void unbindTexture();
+    void addLight(const Light& light);
     void exit();
 
     //imgui
@@ -195,13 +201,16 @@ private:
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer, shader;
     GLFWwindow* window;
 
-    GLuint modelLocation;
-    GLuint viewLocation;
-    GLuint projectionLocation;
+    GLuint modelLoc;
+    GLuint viewLoc;
+    GLuint projectionLoc;
+    GLint positionLoc;
 
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 projection;
+
+    glm::vec3 pos;
 
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> normals;//legit it's so slow compared to metal on my mac that i gotta make it more space efficient

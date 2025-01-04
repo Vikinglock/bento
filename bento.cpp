@@ -15,6 +15,12 @@
 
 #include <chrono>
 
+#include "bento/lib/AL/al.h"//gonna integrate this later
+#include "bento/lib/AL/alc.h"
+
+#define DR_WAV_IMPLEMENTATION
+#include "bento/lib/dr/dr_wav.h"
+
 #include "bento/bento.h"
 
 /*
@@ -58,6 +64,14 @@ int main() {
 
     bento->initImgui();
 
+    Light light;
+
+    light.position = glm::vec3(0,1,0);
+    light.color = glm::vec3(1,0,0);
+    light.lightLevel = 1.0f;
+
+    bento->addLight(light);
+
     float elapsedTime = 0.0f;
 
     std::vector<Object*> objects;
@@ -71,7 +85,7 @@ int main() {
     Texture *swordTex = new Texture("resources/sword.png");
 
     Mesh *groundMesh = new Mesh("resources/ground.obj");
-    Texture *groundTex = new Texture("resources/grass.png");
+    Texture *groundTex = new Texture("resources/ground.png");
 
 
     objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
@@ -96,6 +110,54 @@ int main() {
 
     bool showDemoWindow = true;
 
+    //audio
+
+    ALCdevice* aldevice = alcOpenDevice(nullptr);
+    ALCcontext* context = alcCreateContext(aldevice, nullptr);
+    if (!context)alcCloseDevice(aldevice);
+    alcMakeContextCurrent(context);
+    ALenum error = alGetError();
+
+
+    ALuint buffer;
+
+    unsigned int channels;
+    unsigned int sampleRate;
+    drwav_uint64 totalSampleCount;
+    int16_t* pSampleData = drwav_open_file_and_read_pcm_frames_s16("./resources/space.wav", &channels, &sampleRate, &totalSampleCount, nullptr);
+
+    if (!pSampleData) {
+        std::cerr << "Failed to load WAV" << std::endl;
+        alcDestroyContext(context);
+        alcCloseDevice(aldevice);
+    }
+
+    ALenum format;
+    if (channels == 1) {
+        format = AL_FORMAT_MONO16;
+    } else if (channels == 2) {
+        format = AL_FORMAT_STEREO16;
+    } else {
+        std::cerr << "Unsupported number of channels: " << channels << std::endl;
+        drwav_free(pSampleData, nullptr);
+        alcDestroyContext(context);
+        alcCloseDevice(aldevice);
+    }
+
+    alGenBuffers(1, &buffer);
+    alBufferData(buffer, format, pSampleData, totalSampleCount * channels * sizeof(int16_t), sampleRate);
+
+    drwav_free(pSampleData, nullptr);
+
+    ALuint source;
+    alGenSources(1, &source);
+    alSourcei(source, AL_BUFFER, buffer);
+    
+    alSourcef(source, AL_GAIN, 0.05);
+
+    alSourcei(source, AL_LOOPING, AL_TRUE);
+
+    alSourcePlay(source);
 
     while (bento->isRunning()){
         bento->predraw();
@@ -113,13 +175,14 @@ int main() {
         fov += (fovTo-fov)/15;
         
 
-        bento->setViewMatrix(view);
+        bento->setViewMatrix(view,position);
         bento->setProjectionMatrix(projection);
 
         bento->bindTexture(swordTex);
         for(Object* obj : objects){
             obj->draw(bento);
         }
+
 
         bento->setVertices(groundMesh->getVertexBuffer());
         bento->setNormals(groundMesh->getNormalBuffer());
@@ -172,6 +235,13 @@ int main() {
 
         ticks++;
     }
+    alSourceStop(source);
+    alDeleteSources(1, &source);
+    alDeleteBuffers(1, &buffer);
+
+    alcMakeContextCurrent(nullptr);
+    alcDestroyContext(context);
+    alcCloseDevice(aldevice);
     
     bento->exit();
     delete bento;

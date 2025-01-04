@@ -9,6 +9,7 @@
 #import <Cocoa/Cocoa.h>
 #import <GameController/GameController.h>
 
+#define MAX_LIGHTS 50
 
 id<MTLDevice> device = nil;
 bool fullscreenable = true;
@@ -43,6 +44,9 @@ struct controller{
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
 @property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
+@property (nonatomic, strong) id<MTLBuffer> lightBuffer;
+@property (nonatomic) std::vector<glm::vec3> lightPoses;
+@property (nonatomic) glm::vec3 pos;
 @property (nonatomic) double wheelX;
 @property (nonatomic) double wheelY;
 @property (nonatomic) MTLViewport viewport;
@@ -307,6 +311,7 @@ struct controller{
     }
 
     - (void)draw {
+
         [self.commandEncoder setCullMode:MTLCullModeFront];
         [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
@@ -317,10 +322,29 @@ struct controller{
         [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:4];
         [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:5];
         [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:6];
+/*
+        // Assuming self.vec3Array is a std::vector<glm::vec3> or glm::vec3 array
+        size_t bufferSize = sizeof(glm::vec3) * self.lightPoses.size();
+
+        std::vector<float> flatArray(self.lightPoses.size() * 3);
+        for (size_t i = 0; i < self.lightPoses.size(); ++i) {
+        flatArray[i * 3] = self.lightPoses[i].x;
+        flatArray[i * 3 + 1] = self.lightPoses[i].y;
+        flatArray[i * 3 + 2] = self.lightPoses[i].z;
+        }
+
+        id<MTLBuffer> lightPosesBuffer = [device newBufferWithBytes:flatArray.data()
+                                                            length:bufferSize
+                                                           options:MTLResourceStorageModeShared];
+
+        [self.commandEncoder setVertexBuffer:lightPosesBuffer offset:0 atIndex:7];
+*/
+        float whydoesmetaldothistome[3] = {self.pos.x, self.pos.y, self.pos.z};
+        [self.commandEncoder setVertexBytes:whydoesmetaldothistome length:sizeof(float) * 3 atIndex:8];
 
         [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
         [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
-        
+
         [self.commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:self.vertCount];
     }
     - (void)render {
@@ -468,8 +492,9 @@ struct controller{
     - (void)setModelMatrix:(const float*)matrix {
         memcpy(self.model, matrix, sizeof(float) * 16);
     }
-    - (void)setViewMatrix:(const float*)matrix {
+    - (void)setViewMatrix:(const float*)matrix pos:(glm::vec3)pos {
         memcpy(self.view, matrix, sizeof(float) * 16);
+        self.pos = pos;
     }
     - (void)setProjectionMatrix:(const float*)matrix {
         memcpy(self.projection, matrix, sizeof(float) * 16);
@@ -719,6 +744,9 @@ struct controller{
     - (MTLRenderPassDescriptor *) getRenderPass{
         return self.passDescriptor;
     }
+    - (void) addLight:(glm::vec3)position{
+        self.lightPoses.push_back(position);
+    }
 
 @end
 
@@ -862,10 +890,10 @@ struct controller{
         }
     }
 
-    void MetalBento::setViewMatrix(const glm::mat4 v) {
+    void MetalBento::setViewMatrix(const glm::mat4 v,const glm::vec3 p) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setViewMatrix:(float*)&v];
+            [renderer setViewMatrix:(float*)&v pos:p];
         }
     }
 
@@ -1079,6 +1107,12 @@ struct controller{
     }
 
     
+    void MetalBento::addLight(const Light& light){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer addLight:light.position];
+        }
+    }
 
 
     std::string MetalBento::getFramework(){
