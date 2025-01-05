@@ -43,18 +43,18 @@ void main()
 {
     specular = 25.0;
     float t = 0.4000000059604644775390625;
-    vec3 finalColor = vec3(dot(fragNormal, vec3(sin(t), cos(t), 0.0))) * 0.20000000298023223876953125;
+    vec3 finalColor = vec3(0.0);
     viewDir = normalize(pos - fragPos);
     Light light;
-    light.position = vec3(1.0, 1.0, 0.0);
-    light.ambient = vec3(0.0, 1.0, 0.0);
-    light.diffuse = vec3(0.0, 1.0, 0.0);
-    light.specular = vec3(1.0);
+    light.position = vec3(1.0, 5.0, 0.0);
+    light.ambient = vec3(1.0);
+    light.diffuse = vec3(1.0, 0.0, 0.0);
+    light.specular = vec3(1.0, 0.60000002384185791015625, 0.60000002384185791015625);
     light.constant = 0.100000001490116119384765625;
-    light.linear = 0.00999999977648258209228515625;
-    light.quadratic = 0.100000001490116119384765625;
+    light.linear = 0.800000011920928955078125;
+    light.quadratic = 0.00999999977648258209228515625;
     Light param = light;
     finalColor += calculateLighting(param);
     vec3 textureColor = texture(tex, fragUV).xyz;
-    fragColor = vec4(finalColor * textureColor, 1.0);
+    fragColor = vec4(max(finalColor * textureColor, vec3(0.100000001490116119384765625)), 1.0);
 }

@@ -15,12 +15,6 @@
 
 #include <chrono>
 
-#include "bento/lib/AL/al.h"//gonna integrate this later
-#include "bento/lib/AL/alc.h"
-
-#define DR_WAV_IMPLEMENTATION
-#include "bento/lib/dr/dr_wav.h"
-
 #include "bento/bento.h"
 
 /*
@@ -57,6 +51,13 @@ float angleX = 3.14, angleY = 0;
 std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();;
 float deltaTime = 0.0f;
 
+Sound* sound1;
+Sound* sound2;
+Sound* sound3;
+
+
+float elapsedTime = 0.0f, stepCounter = 0.0f;
+
 int main() {
     Bento *bento = new Bento();
     bento->init("ベント",1000,1000);
@@ -72,10 +73,9 @@ int main() {
 
     bento->addLight(light);
 
-    float elapsedTime = 0.0f;
 
     std::vector<Object*> objects;
-    objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj"));
+    //objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj"));
 
 
     //for(int i = -50; i < 50; i+=2)
@@ -88,7 +88,7 @@ int main() {
     Texture *groundTex = new Texture("resources/ground.png");
 
 
-    objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
+    //objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
     
 
 
@@ -112,52 +112,24 @@ int main() {
 
     //audio
 
-    ALCdevice* aldevice = alcOpenDevice(nullptr);
-    ALCcontext* context = alcCreateContext(aldevice, nullptr);
-    if (!context)alcCloseDevice(aldevice);
-    alcMakeContextCurrent(context);
-    ALenum error = alGetError();
+
+    bento->initSound();
+
+    Sound* music = new Sound("./resources/space.wav");//from my other other game (fine to use also)
+
+    music->setGain(0.25);
+    music->setLoop(true);
+    music->play();
 
 
-    ALuint buffer;
+    sound1 = new Sound("./resources/step1.wav");//from my other game (free to use btw)
+    sound3 = new Sound("./resources/step4.wav");//note it's .wav only
+    sound2 = new Sound("./resources/step3.wav");
 
-    unsigned int channels;
-    unsigned int sampleRate;
-    drwav_uint64 totalSampleCount;
-    int16_t* pSampleData = drwav_open_file_and_read_pcm_frames_s16("./resources/space.wav", &channels, &sampleRate, &totalSampleCount, nullptr);
+    sound1->setGain(0.5);
+    sound2->setGain(0.5);
+    sound3->setGain(0.5);
 
-    if (!pSampleData) {
-        std::cerr << "Failed to load WAV" << std::endl;
-        alcDestroyContext(context);
-        alcCloseDevice(aldevice);
-    }
-
-    ALenum format;
-    if (channels == 1) {
-        format = AL_FORMAT_MONO16;
-    } else if (channels == 2) {
-        format = AL_FORMAT_STEREO16;
-    } else {
-        std::cerr << "Unsupported number of channels: " << channels << std::endl;
-        drwav_free(pSampleData, nullptr);
-        alcDestroyContext(context);
-        alcCloseDevice(aldevice);
-    }
-
-    alGenBuffers(1, &buffer);
-    alBufferData(buffer, format, pSampleData, totalSampleCount * channels * sizeof(int16_t), sampleRate);
-
-    drwav_free(pSampleData, nullptr);
-
-    ALuint source;
-    alGenSources(1, &source);
-    alSourcei(source, AL_BUFFER, buffer);
-    
-    alSourcef(source, AL_GAIN, 0.05);
-
-    alSourcei(source, AL_LOOPING, AL_TRUE);
-
-    alSourcePlay(source);
 
     while (bento->isRunning()){
         bento->predraw();
@@ -193,6 +165,8 @@ int main() {
         bento->draw();
 
         bento->imguiNewFrame();
+
+
         ImGui::Begin("aaa");
 
         if(showDemoWindow)ImGui::ShowDemoWindow(&showDemoWindow);
@@ -224,10 +198,14 @@ int main() {
         drawList->AddCircle({centerX,centerY},100,ImColor(200,200,200));
 
         ImGui::End();
+
+
         bento->imguiRender();
+
         bento->render();
 
         elapsedTime+=1.0f / 70.0f;
+        stepCounter+=sqrt(speed.x*speed.x+speed.z*speed.z)/200.0f;
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
@@ -235,14 +213,6 @@ int main() {
 
         ticks++;
     }
-    alSourceStop(source);
-    alDeleteSources(1, &source);
-    alDeleteBuffers(1, &buffer);
-
-    alcMakeContextCurrent(nullptr);
-    alcDestroyContext(context);
-    alcCloseDevice(aldevice);
-    
     bento->exit();
     delete bento;
     return 0;
@@ -270,12 +240,45 @@ void processInputs(Bento *bento){
         grounded = false;
     }
 
+    if(grounded && sqrt(speed.x*speed.x+speed.z*speed.z) > 0.1 && std::fmod(stepCounter, 1.0f)>0.75){
+        int r = rand()%75;
+        stepCounter = 0.0f;
+        Sound* sound;
+        if(r < 25) sound = sound1;
+        else if(r < 50) sound = sound2;
+        else sound = sound3;
+        
+        sound->play();
+        int p = rand();
+        std::cout<<std::fmod(p/1000.0,1.0f)*0.25+0.75<<std::endl;
+        sound->setPitch(std::fmod(p/1000.0,1.0f)*0.25+0.75);
+
+    }
+
 
 
     float moveSpeed = 2.0;
     float jumpHeight = 5.0;
 
-    if(bento->getKey(KEY_LEFT_SHIFT)){moveSpeed = 3.0;}
+    bool running = false;
+
+    if(bento->getKey(KEY_LEFT_SHIFT)){running = true;moveSpeed = 3.5;}
+
+    if(grounded && sqrt(speed.x*speed.x+speed.z*speed.z) < 0.1){
+        running = false;
+    }
+
+    if(bento->getMouse(MOUSE_RIGHT)){
+        bento->setMouseCursor(true,0);
+        lock = true;
+        if(running)fovTo =  60.0;
+        else fovTo =  50.0;
+    }else{
+        if(running)fovTo =  110.0;
+        else fovTo = fovDef;
+    }
+
+    if(bento->getKey(KEY_LEFT_CONTROL)){playerHeight = 0.25;moveSpeed = 0.5;}else playerHeight = 1.0;
 
     if(!grounded)moveSpeed /= 10;
 
@@ -286,7 +289,6 @@ void processInputs(Bento *bento){
     if(bento->getKey(KEY_E))position.y += 0.1;
     if(bento->getKey(KEY_Q))position.y -= 0.1;
 
-    if(bento->getKey(KEY_LEFT_CONTROL))playerHeight = 0.25; else playerHeight = 1.0;
 
     if(bento->getKey(KEY_SPACE) && !jumping && grounded){speed.y += jumpHeight;jumping = true;grounded = false;}else{jumping = false;}
 
@@ -299,12 +301,9 @@ void processInputs(Bento *bento){
 
     fovDef += bento->getScroll(0);
 
-    if(bento->getKey(KEY_ESCAPE))lock = false;
-    if(bento->getMouse(MOUSE_RIGHT)){
-        lock = true;
-        fovTo =  50.0;
-    }else{
-        fovTo = fovDef;
+    if(bento->getKey(KEY_ESCAPE)){
+        lock = false;
+        bento->setMouseCursor(false,0);
     }
 
     if(lock){

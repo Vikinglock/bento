@@ -9,6 +9,12 @@
 #import <Cocoa/Cocoa.h>
 #import <GameController/GameController.h>
 
+
+ALCdevice* aldevice = nullptr;
+ALCcontext* context = nullptr;
+std::vector<ALuint> sounds;
+std::vector<ALuint> buffers;
+
 #define MAX_LIGHTS 50
 
 id<MTLDevice> device = nil;
@@ -215,7 +221,7 @@ struct controller{
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         self.passDescriptor.colorAttachments[0].texture = self.appTexture;
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
         self.passDescriptor.depthAttachment.texture = self.depthTexture;
@@ -299,7 +305,7 @@ struct controller{
 
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         self.passDescriptor.colorAttachments[0].texture = self.appTexture;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
@@ -760,6 +766,14 @@ struct controller{
         this->rendererObjC = (__bridge void*)renderer;
     }
 
+    void MetalBento::initSound(){
+        aldevice = alcOpenDevice(nullptr);
+        context = alcCreateContext(aldevice, nullptr);
+        if (!context)alcCloseDevice(aldevice);
+        alcMakeContextCurrent(context);
+        ALenum error = alGetError();
+    }
+
     void MetalBento::predraw() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
@@ -805,6 +819,17 @@ struct controller{
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             ImGui_ImplMetal_Shutdown();
+
+            for(int i = 0; i < sounds.size(); i++){
+                alSourceStop(sounds[i]);
+                alDeleteSources(1, &sounds[i]);
+                alDeleteBuffers(1, &buffers[i]);
+            }
+
+            alcMakeContextCurrent(nullptr);
+            alcDestroyContext(context);
+            alcCloseDevice(aldevice);
+
             [renderer exit];
             [[NSApplication sharedApplication] terminate:nil];
         }
