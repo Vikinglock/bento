@@ -15,11 +15,13 @@ class Bento : public OpenGLBento {};
 
 //also very sorry if this is a really unorthodox method of drawing stuff or handling graphics
 
+#include "sound/sound.h"
+
 void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals);
 
 //I LOVE ENUMS I LOVE ENUMS I LOVE ENUMS
 enum{
-    PhysicsObject,
+    PhysicsObject,//what was this supposed to be again?
     NoPhysicsObject,
 };
 

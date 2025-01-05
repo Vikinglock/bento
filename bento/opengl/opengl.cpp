@@ -8,6 +8,11 @@
 #include <fstream>
 #include <sstream>
 
+ALCdevice* aldevice = nullptr;
+ALCcontext* context = nullptr;
+std::vector<ALuint> sounds;
+std::vector<ALuint> buffers;
+
 #define MAX_LIGHTS 50
 
 enum {
@@ -145,6 +150,15 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     glCullFace(GL_BACK);
 }
 
+
+void OpenGLBento::initSound(){
+    aldevice = alcOpenDevice(nullptr);
+    context = alcCreateContext(aldevice, nullptr);
+    if (!context)alcCloseDevice(aldevice);
+    alcMakeContextCurrent(context);
+    ALenum error = alGetError();
+}
+
 void OpenGLBento::focus(){
     glfwFocusWindow(window);
 }
@@ -208,7 +222,7 @@ void OpenGLBento::unbindTexture() {
 
 void OpenGLBento::predraw() {
     glfwPollEvents();
-    glClearColor(0.0f,0.0f,0.0f,1.0f);
+    glClearColor(0.1f,0.1f,0.1f,1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
         if (glfwJoystickPresent(i)) {
@@ -243,6 +257,18 @@ bool OpenGLBento::isRunning(){return !glfwWindowShouldClose(window);}
 // #### INPUT ####
 void OpenGLBento::exit() {
     ImGui_ImplOpenGL3_Shutdown();
+
+    for(int i = 0; i < sounds.size(); i++){
+        alSourceStop(sounds[i]);
+        alDeleteSources(1, &sounds[i]);
+        alDeleteBuffers(1, &buffers[i]);
+    }
+
+    alcMakeContextCurrent(nullptr);
+    alcDestroyContext(context);
+    alcCloseDevice(aldevice);
+
+
     glfwTerminate();
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shader);
