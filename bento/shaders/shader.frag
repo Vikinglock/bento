@@ -51,23 +51,23 @@ vec3 calculateLighting(Light light) {
 
 void main() {
     float t = 0.4;
-    vec3 finalColor = vec3(dot(fragNormal,vec3(sin(t),cos(t),0)))*0.2;
+    vec3 finalColor = vec3(0.0);//vec3(dot(fragNormal,vec3(sin(t),cos(t),0)))*0.2;
     viewDir = normalize(pos - fragPos);
 
     Light light;
     
     light.position = vec3(1,5,0);
-    light.ambient = vec3(0,1,0);
-    light.diffuse = vec3(0,1,0);
-    light.specular = vec3(0.6,1,0.6);
+    light.ambient = vec3(1,1,1);
+    light.diffuse = vec3(1,0,0);
+    light.specular = vec3(1,0.6,0.6);
     light.constant = 0.1;
-    light.linear = 0.01;
-    light.quadratic = 0.1;
+    light.linear = 0.8;
+    light.quadratic = 0.01;
 
     finalColor += calculateLighting(light);
     
-    vec3 textureColor = texture(tex, fragUV).rgb;
-    fragColor = vec4(finalColor * textureColor, 1.0);
+    vec3 textureColor = texture(tex, fragUV).rgb;//-(length(pos-fragPos)/5.0)) + (finalColor * textureColor)
+    fragColor = vec4(max(finalColor * textureColor,0.1), 1.0);
 }
 
 

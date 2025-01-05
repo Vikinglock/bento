@@ -61,20 +61,20 @@ fragment main0_out main0(main0_in in [[stage_in]], texture2d<float> tex [[textur
     main0_out out = {};
     float specular = 25.0;
     float t = 0.4000000059604644775390625;
-    float3 finalColor = float3(dot(in.fragNormal, float3(sin(t), cos(t), 0.0))) * 0.20000000298023223876953125;
+    float3 finalColor = float3(0.0);
     float3 viewDir = fast::normalize(in.pos - in.fragPos);
     Light light;
     light.position = float3(1.0, 5.0, 0.0);
-    light.ambient = float3(0.0, 1.0, 0.0);
-    light.diffuse = float3(0.0, 1.0, 0.0);
-    light.specular = float3(0.60000002384185791015625, 1.0, 0.60000002384185791015625);
+    light.ambient = float3(1.0);
+    light.diffuse = float3(1.0, 0.0, 0.0);
+    light.specular = float3(1.0, 0.60000002384185791015625, 0.60000002384185791015625);
     light.constant0 = 0.100000001490116119384765625;
-    light.linear = 0.00999999977648258209228515625;
-    light.quadratic = 0.100000001490116119384765625;
+    light.linear = 0.800000011920928955078125;
+    light.quadratic = 0.00999999977648258209228515625;
     Light param = light;
     finalColor += calculateLighting(param, specular, in.fragPos, in.fragNormal, viewDir, tex, texSmplr, in.fragUV);
     float3 textureColor = tex.sample(texSmplr, in.fragUV).xyz;
-    out.fragColor = float4(finalColor * textureColor, 1.0);
+    out.fragColor = float4(fast::max(finalColor * textureColor, float3(0.100000001490116119384765625)), 1.0);
     return out;
 }
 

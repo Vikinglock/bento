@@ -18,6 +18,11 @@
 #include "opengltexture.h"
 
 
+#include "bento/lib/AL/al.h"//gonna integrate this later
+#include "bento/lib/AL/alc.h"//yes i copy pasted it
+#include "../sound/soundcommon.h"
+
+
 enum{
     //  #####     KEYS     #####
     KEY_UNKNOWN = -1,
@@ -153,6 +158,7 @@ struct Light {
 class OpenGLBento {
 public:
     void init(const char *title, int width, int height, int x = 0, int y = 0);
+    void initSound();
     void predraw();
     void draw();
     void render();

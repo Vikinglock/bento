@@ -15,6 +15,9 @@
 #include "../lib/imgui/backends/imgui_impl_metal.h"
 #include "../lib/imgui/backends/imgui_impl_osx.h"
 
+#include "../lib/AL/al.h"//for TWO FUNCTIONS
+#include "../lib/AL/alc.h"
+#include "../sound/soundcommon.h"
 
 #ifdef __OBJC__
 #import <Metal/Metal.h>
@@ -202,6 +205,7 @@ struct Light {
 class MetalBento {
 public:
     void init(const char *title, int w, int h, int x = 0, int y = 0);
+    void initSound();
     void predraw();
     void draw();
     void render();
