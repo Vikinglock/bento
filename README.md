@@ -121,6 +121,8 @@ sh runlinux.sh <output> <input1> <input2> ...
 
 WINDOWS IS SO HARD TO WORK WITH AAAAAAAAAAAAA
 
+```
 run.bat <output> <ONLY ONE INPUT>
+```
 
 that's it.
