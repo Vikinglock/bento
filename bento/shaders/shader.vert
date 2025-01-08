@@ -12,7 +12,7 @@ layout(location = 2) out vec2 fragUV;
 layout(location = 3) out vec3 viewPos;
 layout(location = 4) out vec3 pos;
 
-layout(set = 0, binding = 4) uniform Unis {
+layout(set = 0, binding = 3) uniform Uniforms {
     mat4 model;
     mat4 view;
     mat4 projection;

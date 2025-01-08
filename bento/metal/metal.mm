@@ -15,10 +15,18 @@ ALCcontext* context = nullptr;
 std::vector<ALuint> sounds;
 std::vector<ALuint> buffers;
 
-#define MAX_LIGHTS 50
-
 id<MTLDevice> device = nil;
 bool fullscreenable = true;
+
+simd::float3 positions[MAX_LIGHTS];
+simd::float4 constants[MAX_LIGHTS];
+simd::float4 linears[MAX_LIGHTS];
+simd::float4 quads[MAX_LIGHTS];
+simd::float3 ambients[MAX_LIGHTS];
+simd::float3 diffuses[MAX_LIGHTS];
+simd::float3 speculars[MAX_LIGHTS];
+
+glm::vec4 clearColor = glm::vec4(0.0,0.0,0.0,1.0);
 
 struct controller{
     hid_device *hiddevice;
@@ -50,8 +58,7 @@ struct controller{
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
 @property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
-@property (nonatomic, strong) id<MTLBuffer> lightBuffer;
-@property (nonatomic) std::vector<glm::vec3> lightPoses;
+@property (nonatomic) int numLights;
 @property (nonatomic) glm::vec3 pos;
 @property (nonatomic) double wheelX;
 @property (nonatomic) double wheelY;
@@ -83,6 +90,7 @@ struct controller{
         self.model = (float *)malloc(sizeof(float) * 16);
         self.view = (float *)malloc(sizeof(float) * 16);
         self.projection = (float *)malloc(sizeof(float) * 16);
+        self.numLights = 0;
 
         self.app = [NSApplication sharedApplication];
         [self.app setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -221,7 +229,7 @@ struct controller{
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         self.passDescriptor.colorAttachments[0].texture = self.appTexture;
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,clearColor.w);
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
         self.passDescriptor.depthAttachment.texture = self.depthTexture;
@@ -269,7 +277,6 @@ struct controller{
         [self controllerInput];
 
 
-
         [self.app activateIgnoringOtherApps:YES];
         [self.app finishLaunching];
         
@@ -287,8 +294,6 @@ struct controller{
         [appMenuItem setSubmenu:appMenu];
 
         [NSApp setMainMenu:mainMenu];
-
-
     }
 
     - (void)focus {
@@ -305,7 +310,7 @@ struct controller{
 
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         self.passDescriptor.colorAttachments[0].texture = self.appTexture;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,clearColor.z);
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
@@ -314,10 +319,23 @@ struct controller{
         self.passDescriptor.depthAttachment.clearDepth = 1.0;
         self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
         self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
+
+        int numLights = self.numLights;//HOLY HELL IT WORKS
+        [self.commandEncoder setFragmentBytes:&numLights length:sizeof(int) atIndex:0];
+        [self.commandEncoder setFragmentBytes:positions length:sizeof(positions) atIndex:1];
+        [self.commandEncoder setFragmentBytes:constants length:sizeof(constants) atIndex:2];
+        [self.commandEncoder setFragmentBytes:linears length:sizeof(linears) atIndex:3];
+        [self.commandEncoder setFragmentBytes:quads length:sizeof(quads) atIndex:4];
+        [self.commandEncoder setFragmentBytes:ambients length:sizeof(ambients) atIndex:5];
+        [self.commandEncoder setFragmentBytes:diffuses length:sizeof(diffuses) atIndex:6];
+        [self.commandEncoder setFragmentBytes:speculars length:sizeof(speculars) atIndex:7];
+        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
     }
 
     - (void)draw {
-
         [self.commandEncoder setCullMode:MTLCullModeFront];
         [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
@@ -325,28 +343,10 @@ struct controller{
         [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
         [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
         [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:4];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:5];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:6];
-/*
-        // Assuming self.vec3Array is a std::vector<glm::vec3> or glm::vec3 array
-        size_t bufferSize = sizeof(glm::vec3) * self.lightPoses.size();
-
-        std::vector<float> flatArray(self.lightPoses.size() * 3);
-        for (size_t i = 0; i < self.lightPoses.size(); ++i) {
-        flatArray[i * 3] = self.lightPoses[i].x;
-        flatArray[i * 3 + 1] = self.lightPoses[i].y;
-        flatArray[i * 3 + 2] = self.lightPoses[i].z;
-        }
-
-        id<MTLBuffer> lightPosesBuffer = [device newBufferWithBytes:flatArray.data()
-                                                            length:bufferSize
-                                                           options:MTLResourceStorageModeShared];
-
-        [self.commandEncoder setVertexBuffer:lightPosesBuffer offset:0 atIndex:7];
-*/
-        float whydoesmetaldothistome[3] = {self.pos.x, self.pos.y, self.pos.z};
-        [self.commandEncoder setVertexBytes:whydoesmetaldothistome length:sizeof(float) * 3 atIndex:8];
+        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
 
         [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
         [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
@@ -437,6 +437,10 @@ struct controller{
         }
         [self.controllers removeAllObjects];
         hid_exit();
+
+        free(self.model);
+        free(self.view);
+        free(self.projection);
     }
 
     - (BOOL)isRunning {
@@ -509,6 +513,37 @@ struct controller{
         self.texture = tex;
         self.sampler = samp;
     }
+    //idk at what point it went from pos amb dif spec const lin quad to pos const lin quad amb dif spec but whatever
+    - (simd::float3)glmtosimd3:(glm::vec3)v3{return simd::float3{v3.x,v3.y,v3.z};}
+    - (void)addLight:(glm::vec3)pos 
+            ambient:(glm::vec3)ambient 
+            diffuse:(glm::vec3)diffuse 
+            specular:(glm::vec3)specular 
+            constant:(float)constant 
+            linear:(float)linear 
+        quadratic:(float)quadratic {
+        
+        //self.positions[self.numLights] = pos;
+        if (self.numLights >= MAX_LIGHTS) return;
+        positions[self.numLights] = [self glmtosimd3:pos];
+        constants[self.numLights] = simd::float4{constant,0.0,0.0,0.0};
+        linears[self.numLights] = simd::float4{linear,0.0,0.0,0.0};
+        quads[self.numLights] = simd::float4{quadratic,0.0,0.0,0.0};
+        ambients[self.numLights] = [self glmtosimd3:ambient];
+        diffuses[self.numLights] = [self glmtosimd3:diffuse];
+        speculars[self.numLights] = [self glmtosimd3:specular];
+        self.numLights++;
+    }
+
+    
+    - (void) setLightPos:(int)index position:(glm::vec3)position      {positions[index] = [self glmtosimd3:position];}
+    - (void) setLightAmbients:(int)index ambient:(glm::vec3)ambient   {ambients[index] = [self glmtosimd3:ambient];}
+    - (void) setLightDiffuses:(int)index diffuse:(glm::vec3)diffuse   {diffuses[index] = [self glmtosimd3:diffuse];}
+    - (void) setLightSpeculars:(int)index specular:(glm::vec3)specular{speculars[index] = [self glmtosimd3:specular];}
+    - (void) setLightConstants:(int)index constant:(float)constant    {constants[index] = simd::float4{constant,0.0,0.0,0.0};}
+    - (void) setLightLinears:(int)index linear:(float)linear          {linears[index] = simd::float4{linear,0.0,0.0,0.0};}
+    - (void) setLightQuads:(int)index quad:(float)quad                {quads[index] = simd::float4{quad,0.0,0.0,0.0};}
+
 
 
 // #### INPUT ####
@@ -750,9 +785,6 @@ struct controller{
     - (MTLRenderPassDescriptor *) getRenderPass{
         return self.passDescriptor;
     }
-    - (void) addLight:(glm::vec3)position{
-        self.lightPoses.push_back(position);
-    }
 
 @end
 
@@ -774,17 +806,16 @@ struct controller{
         ALenum error = alGetError();
     }
 
+    void MetalBento::setClearColor(glm::vec4 col){
+        @autoreleasepool {
+            clearColor = col;
+        }
+    }
+
     void MetalBento::predraw() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer predraw];
-        }
-    }
-
-    void MetalBento::draw() {
-        @autoreleasepool {
-            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer draw];
             if(getKey(KEY_LEFT_CONTROL)&&getKey(KEY_LEFT_COMMAND)&&getKey(KEY_F)&&fullscreenable){
                 toggleFullscreen();
                 fullscreenable = false;
@@ -794,6 +825,13 @@ struct controller{
             if(getKey(KEY_LEFT_COMMAND)&&getKey(KEY_Q)){
                 exit();
             }
+        }
+    }
+
+    void MetalBento::draw() {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer draw];
         }
     }
 
@@ -1081,7 +1119,7 @@ struct controller{
 
     void uvBuffer::setBuffer(const std::vector<glm::vec2>& buf){
         @autoreleasepool {
-            buffer = [device newBufferWithBytes:(float *)buf.data() length:sizeof(glm::vec3) * buf.size() options:MTLResourceStorageModeShared];
+            buffer = [device newBufferWithBytes:(float *)buf.data() length:sizeof(glm::vec2) * buf.size() options:MTLResourceStorageModeShared];
             count = buf.size()/2;
         }
     }
@@ -1131,14 +1169,62 @@ struct controller{
         }
     }
 
-    
-    void MetalBento::addLight(const Light& light){
+// #### LIGHTING ####
+    //FUYDAOSJDWOAKLAWFHIUOSNFOBEFDOUWNKLDWASNIOFAWNDLSA
+    void MetalBento::addLight(const glm::vec3& pos,const glm::vec3& ambient,const glm::vec3& diffuse,const glm::vec3& specular,float constant,float linear,float quadratic) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer addLight:light.position];
+            [renderer addLight:pos
+                       ambient:ambient
+                       diffuse:diffuse
+                      specular:specular
+                      constant:constant
+                        linear:linear
+                     quadratic:quadratic];
         }
     }
-
+    void MetalBento::setLightPos(int index, glm::vec3& position){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightPos:index position:position];
+        }
+    }
+    void MetalBento::setLightConstants(int index, float constant){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightConstants:index constant:constant];
+        }
+    }
+    void MetalBento::setLightLinears(int index, float linear){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightLinears:index linear:linear];
+        }
+    }
+    void MetalBento::setLightQuads(int index, float quad){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightQuads:index quad:quad];
+        }
+    }
+    void MetalBento::setLightAmbients(int index, glm::vec3& ambient){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightAmbients:index ambient:ambient];
+        }
+    }
+    void MetalBento::setLightDiffuses(int index, glm::vec3& diffuse){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightDiffuses:index diffuse:diffuse];
+        }
+    }
+    void MetalBento::setLightSpeculars(int index, glm::vec3& specular){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setLightSpeculars:index specular:specular];
+        }
+    }
 
     std::string MetalBento::getFramework(){
         @autoreleasepool {

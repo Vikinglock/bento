@@ -3,7 +3,7 @@
 
 using namespace metal;
 
-struct Unis
+struct Uniforms
 {
     float4x4 model;
     float4x4 view;
@@ -28,7 +28,7 @@ struct main0_in
     float2 uv [[attribute(2)]];
 };
 
-vertex main0_out main0(main0_in in [[stage_in]], constant Unis& _20 [[buffer(4)]])
+vertex main0_out main0(main0_in in [[stage_in]], constant Uniforms& _20 [[buffer(3)]])
 {
     main0_out out = {};
     out.gl_Position = ((_20.projection * _20.view) * _20.model) * float4(in.position, 1.0);
