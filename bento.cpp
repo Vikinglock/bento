@@ -23,10 +23,9 @@ THIS IS AN EXAMPLE
 
 this is an example that can be built that can be used freely or as a model
                                ^
-                               (run.bat bento example\ \(go\ here\)/bento.cpp) at bento/
-                               (sh runlinux.sh bento example\ \(go\ here\)/bento.cpp) at bento/
-                               (sh run.sh -metal bento example\ \(go\ here\)/bento.cpp) at bento/
-
+                        (mac)   sh run.sh -metal bento bento.cpp
+                        (mac)   sh run.sh -opengl bento bento.cpp
+                        (linux) sh runlinux.sh bento bento.cpp
 */
 
 void processInputs(Bento *bento);
@@ -63,32 +62,28 @@ int main() {
     bento->init("ベント",1000,1000);
     bento->focus();
 
+    bento->setClearColor(glm::vec4(0,0,0,1));//automatically 0 so you don't have to set this unless you want another color
+
     bento->initImgui();
 
-    Light light;
-
-    light.position = glm::vec3(0,1,0);
-    light.color = glm::vec3(1,0,0);
-    light.lightLevel = 1.0f;
-
-    bento->addLight(light);
-
+    bento->addLight(glm::vec3(10,1,10),glm::vec3(1,1,1),glm::vec3(1,1,1),glm::vec3(1,1,1),1.0,0.9,0.2);
+    bento->addLight(glm::vec3(10,3,1),glm::vec3(10,10,10),glm::vec3(1,1,1),glm::vec3(1,1,1),1.0,0.9,0.2);
 
     std::vector<Object*> objects;
     //objects.emplace_back(new Object("sword",glm::vec3(0,0,0),"resources/sword.obj"));
 
 
-    //for(int i = -50; i < 50; i+=2)
-        //for(int j = -50; j < 50; j+=2)
-                //objects.emplace_back(new Object("sword",glm::vec3(i,0,j),"resources/sword.obj"));
+    for(int i = -25; i < 25; i+=2)
+        for(int j = -25; j < 25; j+=2)
+            objects.emplace_back(new Object("sword",glm::vec3(i,0,j),"resources/sword.obj"));
 
-    Texture *swordTex = new Texture("resources/sword.png");
+    Texture *swordTex = new Texture("./resources/sword.png");//or you can do "resources/sword.png"
 
-    Mesh *groundMesh = new Mesh("resources/ground.obj");
-    Texture *groundTex = new Texture("resources/ground.png");
+    Mesh *groundMesh = new Mesh("./resources/ground.obj");
+    Texture *groundTex = new Texture("./resources/ground.png");
 
 
-    //objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
+    objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
     
 
 
@@ -119,7 +114,7 @@ int main() {
 
     music->setGain(0.25);
     music->setLoop(true);
-    music->play();
+    //music->play();
 
 
     sound1 = new Sound("./resources/step1.wav");//from my other game (free to use btw)
@@ -132,7 +127,6 @@ int main() {
 
 
     while (bento->isRunning()){
-        bento->predraw();
 
         processInputs(bento);
 
@@ -142,19 +136,25 @@ int main() {
         tilt = 0.003;
         view = glm::lookAt(position,position+direction,up+glm::vec3(speed.x*tilt,0,speed.z*tilt));
         windowSize = bento->getWindowSize();
-        projection = glm::perspective(glm::radians(fov), windowSize.x / windowSize.y, 0.01f, 1000.0f);
+        projection = glm::perspective(glm::radians(fov), fmax(windowSize.x,1.0f) / fmax(windowSize.y,1.0f), 0.01f, 1000.0f);
 
         fov += (fovTo-fov)/15;
         
+        bento->setLightPos(0,position);
+
+
+        bento->predraw();
 
         bento->setViewMatrix(view,position);
         bento->setProjectionMatrix(projection);
 
-        bento->bindTexture(swordTex);
-        for(Object* obj : objects){
+        bento->bindTexture(swordTex);//because loading this texture for every single sword would be very inefficient
+        //if you really care about memory or have a pixel art tileset then i recommend looking into texture atlases (putting every sprite into a giant texture)
+        //also with this approach you can offset the uv for some easy animation
+
+        for(Object* obj : objects){//draws everything in objects (they're all swords so binding the texture before this loop would make every object have a sword texture)
             obj->draw(bento);
         }
-
 
         bento->setVertices(groundMesh->getVertexBuffer());
         bento->setNormals(groundMesh->getNormalBuffer());
@@ -172,7 +172,8 @@ int main() {
         if(showDemoWindow)ImGui::ShowDemoWindow(&showDemoWindow);
         ImGui::Text("const char* text");
         ImGui::Text("framework: %s",bento->getFramework().c_str());
-        if(ImGui::Button("amnogus")){bento->exit();}
+        ImGui::Text("operating system: %s",bento->getOperatingSystem().c_str());
+        if(ImGui::Button("exit")){bento->exit();}
         if(ImGui::Button(showDemoWindow?"show demo? true":"show demo? false")){showDemoWindow = showDemoWindow?false:true;}
 
 
@@ -186,8 +187,9 @@ int main() {
         drawList->AddCircleFilled({centerX,centerY}, dotSize, ImColor(255, 255, 255));
         drawList->AddText({10,10},ImColor(255,255,255),(std::to_string(position.x)+" "+std::to_string(position.y)+" "+std::to_string(position.z)).c_str());
         drawList->AddText({10,30},ImColor(255,255,255),(std::to_string(direction.x)+" "+std::to_string(direction.y)+" "+std::to_string(direction.z)).c_str());
-        drawList->AddText({10,50},ImColor(255,255,255),(std::to_string(sqrt(speed.x*speed.x+speed.y*speed.y+speed.z*speed.z))).c_str());
-        drawList->AddText({10,70},ImColor(255,255,255),(std::to_string(bento->getKey(KEY_LEFT_CONTROL))).c_str());
+        drawList->AddText({10,50},ImColor(255,255,255),(std::to_string(speed.x)+" "+std::to_string(speed.y)+" "+std::to_string(speed.z)).c_str());
+        drawList->AddText({10,70},ImColor(255,255,255),(std::to_string(sqrt(speed.x*speed.x+speed.y*speed.y+speed.z*speed.z))).c_str());
+        drawList->AddText({10,90},ImColor(255,255,255),(std::to_string(sqrt(speed.x*speed.x+speed.z*speed.z))).c_str());
         drawList->AddText({10,120},ImColor(255,255,255),("FPS: "+std::to_string(1/deltaTime)).c_str());
         centerX = windowSize.x-120;
         centerY = windowSize.y-120;
@@ -235,8 +237,8 @@ void processInputs(Bento *bento){
         grounded = true;
         maxSpeed = speed;
     }else{
-        speed.x *= 0.97;
-        speed.z *= 0.97;
+        speed.x *= 0.975;
+        speed.z *= 0.975;
         grounded = false;
     }
 
@@ -250,8 +252,7 @@ void processInputs(Bento *bento){
         
         sound->play();
         int p = rand();
-        std::cout<<std::fmod(p/1000.0,1.0f)*0.25+0.75<<std::endl;
-        sound->setPitch(std::fmod(p/1000.0,1.0f)*0.25+0.75);
+        sound->setPitch(std::fmod(p/1000.0,1.0f)*0.5+0.5);
 
     }
 

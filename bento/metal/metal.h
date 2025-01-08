@@ -1,9 +1,12 @@
 #ifndef METAL_H
 #define METAL_H
 
+#define MAX_LIGHTS 50
+
 #include <iostream>
 #include <unordered_map>
 #include <string>
+#include <simd/simd.h>
 
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
@@ -196,16 +199,11 @@ public:
     Texture(const char* filepath) : MetalTexture(filepath) {}
 };
 
-struct Light {
-    glm::vec3 position;
-    glm::vec3 color;
-    float lightLevel;
-};
-
 class MetalBento {
 public:
     void init(const char *title, int w, int h, int x = 0, int y = 0);
     void initSound();
+    void setClearColor(glm::vec4 col = glm::vec4(0,0,0,1));
     void predraw();
     void draw();
     void render();
@@ -236,7 +234,6 @@ public:
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
     void unbindTexture();
-    void addLight(const Light& light);
     void exit();
 
     //imgui
@@ -246,9 +243,21 @@ public:
 
     void imguiRender();
 
+    //lights
+
+    void addLight(const glm::vec3& position,const glm::vec3& ambient = glm::vec3(1.0f),const glm::vec3& diffuse = glm::vec3(1.0f),const glm::vec3& specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
+    void setLightPos(int index, glm::vec3& position);
+    void setLightConstants(int index, float constant);
+    void setLightLinears(int index, float linear);
+    void setLightQuads(int index, float quad);
+    void setLightAmbients(int index, glm::vec3& ambient);
+    void setLightDiffuses(int index, glm::vec3& diffuse);
+    void setLightSpeculars(int index, glm::vec3& specular);
+
     //debug
 
     std::string getFramework();
+    std::string getOperatingSystem(){return "Macos";}
 
 private:
     void *rendererObjC;
