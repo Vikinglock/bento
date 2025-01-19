@@ -2,7 +2,6 @@
 #include "../lib/glm/gtc/matrix_transform.hpp"
 #include "../lib/glm/gtc/type_ptr.hpp"
 #include "../lib/hidapi/hidapi.h"
-#include <vector>
 #import "metal.h"
 #import "metalcommon.h"
 
@@ -39,9 +38,9 @@ struct controller{
 @property (nonatomic, strong) id<MTLDevice> device;
 @property (nonatomic, strong) id<MTLCommandQueue> commandQueue;
 @property (nonatomic, strong) id<MTLRenderPipelineState> pipelineState;
-@property (nonatomic, strong) id<MTLBuffer> vertexBuffer; 
-@property (nonatomic, strong) id<MTLBuffer> normalBuffer; 
-@property (nonatomic, strong) id<MTLBuffer> uvBuffer; 
+@property (nonatomic, strong) id<MTLBuffer> vertexBuffer;
+@property (nonatomic, strong) id<MTLBuffer> normalBuffer;
+@property (nonatomic, strong) id<MTLBuffer> uvBuffer;
 @property (nonatomic, strong) CAMetalLayer *metalLayer;
 @property (nonatomic, strong) NSWindow *window;
 @property (nonatomic, strong) NSApplication *app;
@@ -461,31 +460,25 @@ struct controller{
     }
 
 // #### UNIFORMS ####
-    - (void)setVerticesDirect:(const float *)vertices count:(NSUInteger)count {
-        [self.vertexBuffer release];
-        self.vertexBuffer = [self.device newBufferWithBytes:vertices
-                                                    length:sizeof(float) * count
-                                                    options:MTLResourceStorageModeShared];
-        [self.vertexBuffer retain];
-        self.vertCount = count / 3;
+    - (void)setVerticesDirect:(const std::vector<glm::vec3>&)vertices {
+        self.vertexBuffer = [self.device newBufferWithBytes:vertices.data()
+                                                length:vertices.size() * sizeof(glm::vec3)
+                                            options:MTLResourceStorageModeShared];
+        self.vertCount = vertices.size();
     }
 
-    - (void)setNormalsDirect:(const float *)normals count:(NSUInteger)count {
-        [self.normalBuffer release];
-        self.normalBuffer = [self.device newBufferWithBytes:normals
-                                                    length:sizeof(float) * count
-                                                    options:MTLResourceStorageModeShared];
-        [self.normalBuffer retain];
-        self.normCount = count / 3;
+    - (void)setNormalsDirect:(const std::vector<glm::vec3>&)normals {
+        self.normalBuffer = [self.device newBufferWithBytes:normals.data()
+                                                length:normals.size() * sizeof(glm::vec3)
+                                            options:MTLResourceStorageModeShared];
+        self.normCount = normals.size();
     }
 
-    - (void)setUvsDirect:(const float *)uvs count:(NSUInteger)count {
-        [self.uvBuffer release];
-        self.uvBuffer = [self.device newBufferWithBytes:uvs
-                                                length:sizeof(float) * count
-                                                options:MTLResourceStorageModeShared];
-        [self.uvBuffer retain];
-        self.uvCount = count / 3;
+    - (void)setUvsDirect:(const std::vector<glm::vec2>&)uvs {
+        self.uvBuffer = [self.device newBufferWithBytes:uvs.data()
+                                            length:uvs.size() * sizeof(glm::vec2)
+                                        options:MTLResourceStorageModeShared];
+        self.uvCount = uvs.size();
     }
     - (void)setVertices:(id<MTLBuffer>)vertices count:(NSUInteger)count {
         self.vertexBuffer = vertices;
@@ -509,8 +502,8 @@ struct controller{
     - (void)setProjectionMatrix:(const float*)matrix {
         memcpy(self.projection, matrix, sizeof(float) * 16);
     }
-    - (void)bindTexture:(id<MTLTexture>)tex samp:(id<MTLSamplerState>)samp {
-        self.texture = tex;
+    - (void)bindTexture:(void*)tex samp:(id<MTLSamplerState>)samp {
+        self.texture = (__bridge id<MTLTexture>)tex;
         self.sampler = samp;
     }
     //idk at what point it went from pos amb dif spec const lin quad to pos const lin quad amb dif spec but whatever
@@ -905,22 +898,22 @@ struct controller{
 
     void MetalBento::setVerticesDirect(const std::vector<glm::vec3>& vertices) {
         @autoreleasepool {
-            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer setVerticesDirect:(float *)vertices.data() count:vertices.size() * 3];
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
+            [renderer setVerticesDirect:vertices];
         }
     }
-
+    
     void MetalBento::setNormalsDirect(const std::vector<glm::vec3>& normals) {
         @autoreleasepool {
-            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer setNormalsDirect:(float *)normals.data() count:normals.size() * 3];
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
+            [renderer setNormalsDirect:normals];
         }
     }
-
+    
     void MetalBento::setUvsDirect(const std::vector<glm::vec2>& uvs) {
         @autoreleasepool {
-            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer setUvsDirect:(float *)uvs.data() count:uvs.size() * 2];
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
+            [renderer setUvsDirect:uvs];
         }
     }
 
