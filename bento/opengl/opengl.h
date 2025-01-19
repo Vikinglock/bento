@@ -229,8 +229,14 @@ private:
     glm::vec3 speculars[MAX_LIGHTS];
 
 
-    GLuint vao, vertexBuffer, normalBuffer, uvBuffer, shader;//, ubo, uboIndex; me when macos (they just don't work idk why)
+    GLuint vao, vertexBuffer, normalBuffer, uvBuffer;//, ubo, uboIndex; me when macos (they just don't work idk why)
                                                              // i'll redo it as soon as they make windows more fun to work on (or i guess i could just use linux)
+    GLuint fbo, screenTex, rbo;
+    float fboWidth, fboHeight;
+    GLuint qvao, qvertexBuffer, quvBuffer;
+
+    GLuint shader, postShader;//is the entire shader stored in the uint because that'd be pretty crazy
+
     GLFWwindow* window;
 
     GLuint modelLoc;
