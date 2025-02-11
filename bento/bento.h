@@ -94,6 +94,17 @@ public:
 
         bento->draw();
     }
+    void drawTex(Bento *bento){
+        bento->setVertices(mesh.getVertexBuffer());
+        bento->setNormals(mesh.getNormalBuffer());
+        bento->setUvs(mesh.getUVBuffer());
+        bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
+        if(texture){
+            bento->bindTexture(texture);
+        }
+
+        bento->drawTex();
+    }
     const Mesh& getMesh() const { return mesh; }
     const Texture* getTexture() const { return texture; }
 private:
