@@ -148,6 +148,7 @@ private:
 class Texture : public OpenGLTexture {
 public:
     Texture(const char* filepath) : OpenGLTexture(filepath) {}
+    Texture(unsigned int filepath) : OpenGLTexture(filepath) {}
 };
 
 class OpenGLBento {
@@ -185,6 +186,9 @@ public:
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
     void unbindTexture();
+    void predrawTex(int width,int height);
+    void drawTex();
+    Texture* renderTex();
     void exit();
 
     //imgui
@@ -231,7 +235,9 @@ private:
 
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer;//, ubo, uboIndex; me when macos (they just don't work idk why)
                                                              // i'll redo it as soon as they make windows more fun to work on (or i guess i could just use linux)
+    GLuint framebuffer, colorTexture, depthTexture;
     GLuint fbo, screenTex, rbo;
+    GLint tvp[4];
     float fboWidth, fboHeight;
     GLuint qvao, qvertexBuffer, quvBuffer;
 

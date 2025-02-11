@@ -197,6 +197,10 @@ private:
 class Texture : public MetalTexture {
 public:
     Texture(const char* filepath) : MetalTexture(filepath) {}
+
+    #ifdef __OBJC__
+    Texture(id<MTLTexture> filepath,id<MTLSamplerState> sampler) : MetalTexture(filepath,sampler) {}
+    #endif
 };
 
 class MetalBento {
@@ -234,6 +238,9 @@ public:
     glm::vec2 getDisplaySize();
     void bindTexture(class Texture *tex);
     void unbindTexture();
+    void predrawTex(int width,int height);
+    void drawTex();
+    Texture* renderTex();
     void exit();
 
     //imgui
