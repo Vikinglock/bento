@@ -272,6 +272,69 @@ void OpenGLBento::render() {
     glfwSwapBuffers(window);
 }
 
+void OpenGLBento::predrawTex(int width, int height) {
+    glCullFace(GL_FRONT);
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    glGenTextures(1, &colorTexture);
+    glBindTexture(GL_TEXTURE_2D, colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
+
+    glGenTextures(1, &depthTexture);
+    glBindTexture(GL_TEXTURE_2D, depthTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cerr << "framebuffer isn't complete" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glGetIntegerv(GL_VIEWPORT, tvp);
+    glViewport(0, 0, width, height);
+}
+
+void OpenGLBento::drawTex() {
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    float prev = projection[1][1];
+    projection[1][1] = -prev;
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    projection[1][1] = prev;
+
+    glUniform3f(positionLoc,pos.x,pos.y,pos.z);
+
+    glUniform1i(numLightsLoc,numLights);
+
+    glUniform3fv(positionsLoc, MAX_LIGHTS, glm::value_ptr(positions[0]));
+    glUniform1fv(constantsLoc, MAX_LIGHTS, constants);
+    glUniform1fv(linearsLoc, MAX_LIGHTS, linears);
+    glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
+    glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
+    glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
+    glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
+    
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+    glBindVertexArray(0);
+}
+
+Texture* OpenGLBento::renderTex() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(tvp[0],tvp[1],tvp[2],tvp[3]);
+    glCullFace(GL_BACK);
+    return new Texture((unsigned int)colorTexture);
+}
+
 void OpenGLBento::setModelMatrix(const glm::mat4& m) {model = m;}
 void OpenGLBento::setViewMatrix(const glm::mat4& v,const glm::vec3 p) {view = v;pos = p;}
 void OpenGLBento::setProjectionMatrix(const glm::mat4& p) {projection = p;}

@@ -1,2 +1,8 @@
 
 imgui.ini
+bento/shaders/shader.vs
+bento/shaders/shader.vsmetal
+bento/shaders/shader.fs
+bento/shaders/shader.fsmetal
+bento/shaders/330c
+bento/shaders/bindfix

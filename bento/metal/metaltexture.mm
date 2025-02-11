@@ -119,6 +119,14 @@ MetalTexture::MetalTexture(const char* filepath) {
     }
 }
 
+MetalTexture::MetalTexture(id<MTLTexture> tex,id<MTLSamplerState> samp) {
+    @autoreleasepool {
+        texture = tex;
+        sampler = samp;
+    }
+}
+
+
 MetalTexture::~MetalTexture() {
     @autoreleasepool{
         if (texture) {
@@ -128,9 +136,9 @@ MetalTexture::~MetalTexture() {
     }
 }
 
-id<MTLTexture> MetalTexture::getTexture() {
+void* MetalTexture::getTexture() {
     @autoreleasepool{
-        return texture ? texture : nil;
+        return texture ? (__bridge void*)texture : nil;
     }
 }
 id<MTLSamplerState> MetalTexture::getSampler() {

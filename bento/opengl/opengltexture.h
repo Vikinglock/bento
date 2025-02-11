@@ -7,6 +7,7 @@
 class OpenGLTexture {
 public:
     OpenGLTexture(const char* filepath);
+    OpenGLTexture(unsigned int texture);
     ~OpenGLTexture();
 
     unsigned int getWidth() const { return width; }

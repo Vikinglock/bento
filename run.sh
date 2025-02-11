@@ -13,7 +13,6 @@ if [ "$fw" = "-metal" ]; then
     if [ "$output" = "-convert" ]; then
         echo "(converting shaders to msl)"
         sh bento/shaders/convert.sh bento/shaders/shader.vert bento/shaders/shader.frag --metal bento/shaders/shader.vsmetal bento/shaders/shader.fsmetal || exit 1
-        sh bento/shaders/convert.sh bento/shaders/post.vert bento/shaders/post.frag --metal bento/shaders/post.vsmetal bento/shaders/post.fsmetal || exit 1
         #note .fsmetal is not the standard i just couldn't be bothered to search what it should be
         output=$1
         shift
@@ -27,14 +26,12 @@ elif [ "$fw" = "-opengl" ]; then
     if [ "$output" = "-convert" ]; then
         echo "(converting shaders to 'glsl 330')"
         sh bento/shaders/convert.sh bento/shaders/shader.vert bento/shaders/shader.frag --opengl330 bento/shaders/shader.vs bento/shaders/shader.fs || exit 1
-        sh bento/shaders/convert.sh bento/shaders/post.vert bento/shaders/post.frag --opengl330 bento/shaders/post.vs bento/shaders/post.fs || exit 1
         #i don't think this'll even work
         output=$1
         shift
     elif [ "$output" = "-convertcore" ]; then
         echo "(converting shaders to glsl 330 core)"
         sh bento/shaders/convert.sh bento/shaders/shader.vert bento/shaders/shader.frag --opengl330c bento/shaders/shader.vs bento/shaders/shader.fs || exit 1
-        sh bento/shaders/convert.sh bento/shaders/post.vert bento/shaders/post.frag --opengl330c bento/shaders/post.vs bento/shaders/post.fs || exit 1
         output=$1
         shift
     fi

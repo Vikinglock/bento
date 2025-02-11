@@ -13,10 +13,13 @@
 class MetalTexture {//it worked like this; never touch again
 public:
     MetalTexture(const char* filepath);
+#ifdef __OBJC__
+    MetalTexture(id<MTLTexture> tex,id<MTLSamplerState> sampler);
+#endif
     ~MetalTexture();
+    void* getTexture();
     
 #ifdef __OBJC__
-    id<MTLTexture> getTexture();
     id<MTLSamplerState> getSampler();
 private:
     id<MTLTexture> texture;

@@ -18,6 +18,10 @@ OpenGLTexture::OpenGLTexture(const char* filepath) {
     stbi_image_free(data);
 }
 
+OpenGLTexture::OpenGLTexture(unsigned int tex) {
+    texture = tex;
+}
+
 OpenGLTexture::~OpenGLTexture() {
     glDeleteTextures(1, &texture);
 }

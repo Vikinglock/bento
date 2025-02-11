@@ -57,11 +57,12 @@ struct controller{
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
 @property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
+@property (nonatomic, strong) id<MTLTexture> renderTexture;
+@property (nonatomic, strong) id<MTLTexture> depthTTexture;
 @property (nonatomic) int numLights;
 @property (nonatomic) glm::vec3 pos;
 @property (nonatomic) double wheelX;
 @property (nonatomic) double wheelY;
-@property (nonatomic) MTLViewport viewport;
 @property (nonatomic) NSInteger vertCount;
 @property (nonatomic) NSInteger normCount;
 @property (nonatomic) NSInteger uvCount;
@@ -309,7 +310,7 @@ struct controller{
 
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         self.passDescriptor.colorAttachments[0].texture = self.appTexture;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,clearColor.z);
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,clearColor.w);
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
@@ -371,6 +372,79 @@ struct controller{
         self.wheelY = 0;
         self.wheelX = 0;
     }
+    - (void)predrawTex:(int)width height:(int)height {
+        if (!self.renderTexture || 
+            self.renderTexture.width != width || 
+            self.renderTexture.height != height) {
+            
+            MTLTextureDescriptor *texDesc = [[MTLTextureDescriptor alloc] init];
+            texDesc.pixelFormat = MTLPixelFormatBGRA8Unorm;
+            texDesc.width = width;
+            texDesc.height = height;
+            texDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            self.renderTexture = [self.device newTextureWithDescriptor:texDesc];
+            
+            MTLTextureDescriptor *depthDesc = [[MTLTextureDescriptor alloc] init];
+            depthDesc.pixelFormat = MTLPixelFormatDepth32Float;
+            depthDesc.width = width;
+            depthDesc.height = height;
+            depthDesc.usage = MTLTextureUsageRenderTarget;
+            self.depthTTexture = [self.device newTextureWithDescriptor:depthDesc];
+        }
+        
+        self.commandBuffer = [self.commandQueue commandBuffer];
+        
+
+        self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+        self.passDescriptor.colorAttachments[0].texture = self.renderTexture;
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,1.0);
+        self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+        self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+        self.passDescriptor.depthAttachment.texture = self.depthTTexture;
+        self.passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
+        self.passDescriptor.depthAttachment.clearDepth = 1.0;
+        self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
+        self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
+
+
+        int numLights = self.numLights;
+        [self.commandEncoder setFragmentBytes:&numLights length:sizeof(int) atIndex:0];
+        [self.commandEncoder setFragmentBytes:positions length:sizeof(positions) atIndex:1];
+        [self.commandEncoder setFragmentBytes:constants length:sizeof(constants) atIndex:2];
+        [self.commandEncoder setFragmentBytes:linears length:sizeof(linears) atIndex:3];
+        [self.commandEncoder setFragmentBytes:quads length:sizeof(quads) atIndex:4];
+        [self.commandEncoder setFragmentBytes:ambients length:sizeof(ambients) atIndex:5];
+        [self.commandEncoder setFragmentBytes:diffuses length:sizeof(diffuses) atIndex:6];
+        [self.commandEncoder setFragmentBytes:speculars length:sizeof(speculars) atIndex:7];
+        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
+    }
+
+    - (void)drawTex {
+        [self.commandEncoder setCullMode:MTLCullModeFront];
+        [self.commandEncoder setRenderPipelineState:self.pipelineState];
+        [self.commandEncoder setDepthStencilState:self.depthStencilState];
+        [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
+        [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
+        [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
+        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
+        [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
+        [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
+        [self.commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:self.vertCount];
+    }
+
+    - (id<MTLTexture>)renderTex {
+        [self.commandEncoder endEncoding];
+        [self.commandBuffer commit];
+        return self.renderTexture;
+    }
+
     - (void)windowDidResize:(NSNotification *)notification {
         NSWindow *window = notification.object;
         NSView *view = window.contentView;
@@ -843,6 +917,34 @@ struct controller{
                 [renderer updateInput:event];
             }
             [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0 / 144.0]];
+        }
+    }
+    void MetalBento::predrawTex(int width,int height) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer predrawTex:width height:height];
+        }
+    }
+
+    void MetalBento::drawTex() {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer drawTex];
+        }
+    }
+
+    Texture* MetalBento::renderTex() {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+
+            MTLSamplerDescriptor *samplerDescriptor = [[MTLSamplerDescriptor alloc] init];
+            samplerDescriptor.sAddressMode = MTLSamplerAddressModeRepeat;
+            samplerDescriptor.tAddressMode = MTLSamplerAddressModeRepeat;
+            samplerDescriptor.minFilter = MTLSamplerMinMagFilterNearest;
+            samplerDescriptor.magFilter = MTLSamplerMinMagFilterNearest;
+            id<MTLSamplerState> sampler = [device newSamplerStateWithDescriptor:samplerDescriptor];
+            
+            return new Texture([renderer renderTex],sampler);
         }
     }
 
