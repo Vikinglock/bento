@@ -4,7 +4,6 @@
 #define MAX_LIGHTS 50
 
 #include <iostream>
-
 #include "../lib/imgui/imgui.h"
 #include "../lib/imgui/backends/imgui_impl_glfw.h"
 #include "../lib/imgui/backends/imgui_impl_opengl3.h"
@@ -17,10 +16,13 @@
 #include "../lib/GLFW/glfw3.h"
 #include <vector>
 #include "opengltexture.h"
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 
-
-#include "../lib/AL/al.h"//gonna integrate this later
-#include "../lib/AL/alc.h"//yes i copy pasted it
+#include "../lib/AL/al.h"
+#include "../lib/AL/alc.h"
 #include "../sound/soundcommon.h"
 
 
@@ -151,6 +153,14 @@ public:
     Texture(unsigned int filepath) : OpenGLTexture(filepath) {}
 };
 
+
+
+class Shader {
+
+};
+
+
+
 class OpenGLBento {
 public:
     void init(const char *title, int width, int height, int x = 0, int y = 0);
@@ -189,6 +199,8 @@ public:
     void predrawTex(int width,int height);
     void drawTex();
     Texture* renderTex();
+    void setShader(Shader* shader);
+    void resetShader();
     void exit();
 
     //imgui
@@ -200,14 +212,16 @@ public:
 
     //lights
 
-    void addLight(const glm::vec3& position,const glm::vec3& ambient = glm::vec3(1.0f),const glm::vec3& diffuse = glm::vec3(1.0f),const glm::vec3& specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
-    void setLightPos(int index, glm::vec3& position);
+    void addLight(const glm::vec3 position,const glm::vec3 ambient = glm::vec3(1.0f),const glm::vec3 diffuse = glm::vec3(1.0f),const glm::vec3 specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
+    void setLightPos(int index, glm::vec3 position);
     void setLightConstants(int index, float constant);
     void setLightLinears(int index, float linear);
     void setLightQuads(int index, float quad);
-    void setLightAmbients(int index, glm::vec3& ambient);
-    void setLightDiffuses(int index, glm::vec3& diffuse);
-    void setLightSpeculars(int index, glm::vec3& specular);
+    void setLightAmbients(int index, glm::vec3 ambient);
+    void setLightDiffuses(int index, glm::vec3 diffuse);
+    void setLightSpeculars(int index, glm::vec3 specular);
+
+    void setAmbientColor(glm::vec3 ambient);
 
     //debug
 
@@ -223,6 +237,7 @@ public:
     }
 
 private:
+    bool defaultShader;
     int numLights;
     glm::vec3 positions[MAX_LIGHTS];
     float constants[MAX_LIGHTS];
@@ -232,6 +247,7 @@ private:
     glm::vec3 diffuses[MAX_LIGHTS];
     glm::vec3 speculars[MAX_LIGHTS];
 
+    Shader* currentShader;
 
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer;//, ubo, uboIndex; me when macos (they just don't work idk why)
                                                              // i'll redo it as soon as they make windows more fun to work on (or i guess i could just use linux)
@@ -258,6 +274,10 @@ private:
     GLuint diffusesLoc;
     GLuint specularsLoc;
     GLuint numLightsLoc;
+
+    GLuint ambientLoc;
+
+    glm::vec3 amb;
 
     glm::mat4 model;
     glm::mat4 view;

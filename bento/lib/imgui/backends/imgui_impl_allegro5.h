@@ -9,6 +9,7 @@
 // Missing features or Issues:
 //  [ ] Renderer: The renderer is suboptimal as we need to unindex our buffers and convert vertices manually.
 //  [ ] Platform: Missing gamepad support.
+//  [ ] Renderer: Multi-viewport support (multiple windows).
 
 // You can use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this.
 // Prefer including the entire imgui/ repository into your project (either as a copy or as a submodule), and only build the backends you need.
@@ -19,7 +20,7 @@
 // - Introduction, links and more at the top of imgui.cpp
 
 #pragma once
-#include "imgui.h"      // IMGUI_IMPL_API
+#include "../imgui.h"      // IMGUI_IMPL_API
 #ifndef IMGUI_DISABLE
 
 struct ALLEGRO_DISPLAY;

@@ -13,7 +13,7 @@ class Bento : public OpenGLBento {};
 
 #define pi 3.1415926535
 
-//also very sorry if this is a really unorthodox method of drawing stuff or handling graphics
+//also very sorry if this is a really unorthodox method of drawing stuff or handling graphics        but i don't care
 
 #include "sound/sound.h"
 
@@ -24,7 +24,6 @@ enum{
     PhysicsObject,//what was this supposed to be again?
     NoPhysicsObject,
 };
-
 
 class Mesh{
 public:

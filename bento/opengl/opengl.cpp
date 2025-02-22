@@ -2,39 +2,8 @@
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
 #include "../lib/glm/gtc/type_ptr.hpp"
-#include <iostream>
-#include <filesystem>
-#include <vector>
-#include <fstream>
-#include <sstream>
 
-ALCdevice* aldevice = nullptr;
-ALCcontext* context = nullptr;
-std::vector<ALuint> sounds;
-std::vector<ALuint> buffers;
 
-enum {
-    KeyStateNone,
-    KeyStatePressed,
-    KeyStateReleased
-};
-
-bool shouldClose;
-int vertCount = 0;
-int normCount = 0;
-int uvCount = 0;
-int wheelX = 0;
-int wheelY = 0;
-
-glm::vec4 clearColor = glm::vec4(0.0,0.0,0.0,1.0);
-
-int buttonCount;
-const unsigned char* buttons[GLFW_JOYSTICK_LAST];
-int axisCount;
-const float* axes[GLFW_JOYSTICK_LAST];
-//opengl is so much more straightforward
-
-// #### MAIN ####
 std::string loadShaderSource(const std::string& filepath) {
     std::ifstream file(filepath);
     std::stringstream buffer;
@@ -92,7 +61,33 @@ GLuint createShaderProgram(const std::string& vertexPath, const std::string& fra
     return program;
 }
 
+ALCdevice* aldevice = nullptr;
+ALCcontext* context = nullptr;
+std::vector<ALuint> sounds;
+std::vector<ALuint> buffers;
 
+enum {
+    KeyStateNone,
+    KeyStatePressed,
+    KeyStateReleased
+};
+
+bool shouldClose;
+int vertCount = 0;
+int normCount = 0;
+int uvCount = 0;
+int wheelX = 0;
+int wheelY = 0;
+
+glm::vec4 clearColor = glm::vec4(0.0,0.0,0.0,1.0);
+
+int buttonCount;
+const unsigned char* buttons[GLFW_JOYSTICK_LAST];
+int axisCount;
+const float* axes[GLFW_JOYSTICK_LAST];
+//opengl is so much more straightforward
+
+// #### MAIN ####
 void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -124,6 +119,8 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
         return;
     }
 
+    defaultShader = true;
+
     shader = createShaderProgram("bento/shaders/shader.vs", "bento/shaders/shader.fs");
     modelLoc = glGetUniformLocation(shader, "model");
     viewLoc = glGetUniformLocation(shader, "view");
@@ -140,6 +137,8 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     specularsLoc = glGetUniformLocation(shader, "speculars");
     numLightsLoc = glGetUniformLocation(shader, "numLights");
 
+    ambientLoc = glGetUniformLocation(shader, "ambient");
+
     for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
         if (glfwJoystickPresent(i)) {
             buttons[i] = glfwGetJoystickButtons(i, &buttonCount);
@@ -152,6 +151,9 @@ void OpenGLBento::init(const char *title, int width, int height, int x, int y){
     glGenBuffers(1, &vertexBuffer);
     glGenBuffers(1, &normalBuffer);
     glGenBuffers(1, &uvBuffer);
+    glGenFramebuffers(1, &framebuffer);
+    glGenTextures(1, &colorTexture);
+    glGenTextures(1, &depthTexture);
     
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -243,25 +245,29 @@ void OpenGLBento::predraw() {
             axes[i] = glfwGetJoystickAxes(i, &axisCount);
         }
     }
-    glUseProgram(shader);
+    if(defaultShader)glUseProgram(shader);
 }
 
 void OpenGLBento::draw() {
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    if(defaultShader){
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-    glUniform3f(positionLoc,pos.x,pos.y,pos.z);
+        glUniform3f(positionLoc,pos.x,pos.y,pos.z);
 
-    glUniform1i(numLightsLoc,numLights);
+        glUniform1i(numLightsLoc,numLights);
 
-    glUniform3fv(positionsLoc, MAX_LIGHTS, glm::value_ptr(positions[0]));
-    glUniform1fv(constantsLoc, MAX_LIGHTS, constants);
-    glUniform1fv(linearsLoc, MAX_LIGHTS, linears);
-    glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
-    glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
-    glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
-    glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
+        glUniform3fv(positionsLoc, MAX_LIGHTS, glm::value_ptr(positions[0]));
+        glUniform1fv(constantsLoc, MAX_LIGHTS, constants);
+        glUniform1fv(linearsLoc, MAX_LIGHTS, linears);
+        glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
+        glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
+        glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
+        glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
+
+        glUniform3f(ambientLoc,amb.x,amb.y,amb.z);
+    }
     
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, vertices.size());
@@ -274,10 +280,9 @@ void OpenGLBento::render() {
 
 void OpenGLBento::predrawTex(int width, int height) {
     glCullFace(GL_FRONT);
-    glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
-    glGenTextures(1, &colorTexture);
+
     glBindTexture(GL_TEXTURE_2D, colorTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -286,7 +291,6 @@ void OpenGLBento::predrawTex(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
 
-    glGenTextures(1, &depthTexture);
     glBindTexture(GL_TEXTURE_2D, depthTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -294,13 +298,10 @@ void OpenGLBento::predrawTex(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
-
-
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        std::cerr << "framebuffer isn't complete" << std::endl;
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glGetIntegerv(GL_VIEWPORT, tvp);
     glViewport(0, 0, width, height);
+    glClearColor(clearColor.x,clearColor.y,clearColor.z,clearColor.w);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void OpenGLBento::drawTex() {
@@ -321,18 +322,18 @@ void OpenGLBento::drawTex() {
     glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
     glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
     glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
-    glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
     
+    glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, vertices.size());
     glBindVertexArray(0);
 }
 
-Texture* OpenGLBento::renderTex() {
+Texture* OpenGLBento::renderTex(){
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(tvp[0],tvp[1],tvp[2],tvp[3]);
     glCullFace(GL_BACK);
-    return new Texture((unsigned int)colorTexture);
+    return new Texture(colorTexture);
 }
 
 void OpenGLBento::setModelMatrix(const glm::mat4& m) {model = m;}
@@ -359,6 +360,14 @@ void OpenGLBento::exit() {
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shader);
     std::exit(0);
+}
+
+void OpenGLBento::setShader(Shader* shader) {
+    defaultShader = false;
+    currentShader = shader;
+}
+void OpenGLBento::resetShader() {
+    defaultShader = true;
 }
 
 
@@ -481,6 +490,7 @@ void OpenGLBento::imguiNewFrame() {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.DisplaySize = ImVec2((float)width, (float)height);
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
@@ -488,7 +498,7 @@ void OpenGLBento::imguiNewFrame() {
 
 
     
-void OpenGLBento::addLight(const glm::vec3& pos,const glm::vec3& ambient,const glm::vec3& diffuse,const glm::vec3& specular,float constant,float linear,float quadratic) {
+void OpenGLBento::addLight(const glm::vec3 pos,const glm::vec3 ambient,const glm::vec3 diffuse,const glm::vec3 specular,float constant,float linear,float quadratic) {
     if (numLights >= MAX_LIGHTS) return;
 
     positions[numLights] = pos;
@@ -502,13 +512,16 @@ void OpenGLBento::addLight(const glm::vec3& pos,const glm::vec3& ambient,const g
     numLights++;
 }
 
-void OpenGLBento::setLightPos(int index, glm::vec3& position){positions[index] = position;}
+void OpenGLBento::setLightPos(int index, glm::vec3 position){positions[index] = position;}
 void OpenGLBento::setLightConstants(int index, float constant){constants[index] = constant;}
 void OpenGLBento::setLightLinears(int index, float linear){linears[index] = linear;}
 void OpenGLBento::setLightQuads(int index, float quad){quads[index] = quad;}
-void OpenGLBento::setLightAmbients(int index, glm::vec3& ambient){ambients[index] = ambient;}
-void OpenGLBento::setLightDiffuses(int index, glm::vec3& diffuse){diffuses[index] = diffuse;}
-void OpenGLBento::setLightSpeculars(int index, glm::vec3& specular){speculars[index] = specular;}
+void OpenGLBento::setLightAmbients(int index, glm::vec3 ambient){ambients[index] = ambient;}
+void OpenGLBento::setLightDiffuses(int index, glm::vec3 diffuse){diffuses[index] = diffuse;}
+void OpenGLBento::setLightSpeculars(int index, glm::vec3 specular){speculars[index] = specular;}
+
+
+void OpenGLBento::setAmbientColor(glm::vec3 ambient){amb = ambient;}
 
 
 

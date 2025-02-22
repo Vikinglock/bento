@@ -33,7 +33,7 @@
 // - For correct results you need to be using sRGB and convert to linear space in the pixel shader output.
 // - The default dear imgui styles will be impacted by this change (alpha values will need tweaking).
 
-// FIXME: cfg.OversampleH, OversampleV are not supported (but perhaps not so necessary with this rasterizer).
+// FIXME: cfg.OversampleH, OversampleV are not supported, but generally not necessary with this rasterizer because Hinting makes everything look better.
 
 #include "imgui.h"
 #ifndef IMGUI_DISABLE
@@ -104,6 +104,9 @@ static FT_Error ImGuiLunasvgPortPresetSlot(FT_GlyphSlot slot, FT_Bool cache, FT_
 // Code
 //-------------------------------------------------------------------------
 
+#define FT_CEIL(X)      (((X + 63) & -64) / 64) // From SDL_ttf: Handy routines for converting from fixed point
+#define FT_SCALEFACTOR  64.0f
+
 namespace
 {
     // Glyph metrics:
@@ -169,7 +172,7 @@ namespace
         const FT_Glyph_Metrics* LoadGlyph(uint32_t in_codepoint);
         const FT_Bitmap*        RenderGlyphAndGetInfo(GlyphInfo* out_glyph_info);
         void                    BlitGlyph(const FT_Bitmap* ft_bitmap, uint32_t* dst, uint32_t dst_pitch, unsigned char* multiply_table = nullptr);
-        FreeTypeFont()          { memset(this, 0, sizeof(*this)); }
+        FreeTypeFont()          { memset((void*)this, 0, sizeof(*this)); }
         ~FreeTypeFont()         { CloseFont(); }
 
         // [Internals]
@@ -181,9 +184,6 @@ namespace
         float           RasterizationDensity;
         float           InvRasterizationDensity;
     };
-
-    // From SDL_ttf: Handy routines for converting from fixed point
-    #define FT_CEIL(X)  (((X + 63) & -64) / 64)
 
     bool FreeTypeFont::InitFont(FT_Library ft_library, const ImFontConfig& cfg, unsigned int extra_font_builder_flags)
     {
@@ -269,11 +269,11 @@ namespace
         if (glyph_index == 0)
             return nullptr;
 
-		// If this crash for you: FreeType 2.11.0 has a crash bug on some bitmap/colored fonts.
-		// - https://gitlab.freedesktop.org/freetype/freetype/-/issues/1076
-		// - https://github.com/ocornut/imgui/issues/4567
-		// - https://github.com/ocornut/imgui/issues/4566
-		// You can use FreeType 2.10, or the patched version of 2.11.0 in VcPkg, or probably any upcoming FreeType version.
+        // If this crash for you: FreeType 2.11.0 has a crash bug on some bitmap/colored fonts.
+        // - https://gitlab.freedesktop.org/freetype/freetype/-/issues/1076
+        // - https://github.com/ocornut/imgui/issues/4567
+        // - https://github.com/ocornut/imgui/issues/4566
+        // You can use FreeType 2.10, or the patched version of 2.11.0 in VcPkg, or probably any upcoming FreeType version.
         FT_Error error = FT_Load_Glyph(Face, glyph_index, LoadFlags);
         if (error)
             return nullptr;
@@ -316,7 +316,7 @@ namespace
         out_glyph_info->Height = (int)ft_bitmap->rows;
         out_glyph_info->OffsetX = Face->glyph->bitmap_left;
         out_glyph_info->OffsetY = -Face->glyph->bitmap_top;
-        out_glyph_info->AdvanceX = (float)FT_CEIL(slot->advance.x);
+        out_glyph_info->AdvanceX = (float)slot->advance.x / FT_SCALEFACTOR;
         out_glyph_info->IsColored = (ft_bitmap->pixel_mode == FT_PIXEL_MODE_BGRA);
 
         return ft_bitmap;

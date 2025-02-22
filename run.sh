@@ -46,4 +46,6 @@ else
     exit 1
 fi
 
+codesign -s - -v -f --entitlements debug.plist "$output"
+
 ./"$output"
