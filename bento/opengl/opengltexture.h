@@ -1,8 +1,8 @@
 #ifndef OPENGLTEXTURE_H
 #define OPENGLTEXTURE_H
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "../lib/glad/glad.h"
+#include "../lib/GLFW/glfw3.h"
 
 class OpenGLTexture {
 public:
