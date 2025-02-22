@@ -25,6 +25,8 @@ layout(set = 0, binding = 0) uniform sampler2D tex;
 layout(set = 0, binding = 7) uniform Uniforms {
     int numLights;
     
+    vec3 ambientColor;
+    
     vec3 positions[MAX_LIGHTS];
     
     float constants[MAX_LIGHTS];
@@ -46,7 +48,7 @@ vec3 calculateLighting(Light light) {
     vec3 reflectDir = reflect(-lightDir, fragNormal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), tspecular);
     float distance = length(light.position  - fragPos);
-    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
     vec3 text = vec3(texture(tex, fragUV));
     vec3 ambient = light.ambient * text;
     vec3 diffuse = light.diffuse * diff * text;
@@ -59,36 +61,22 @@ vec3 calculateLighting(Light light) {
 
 void main() {
     float t = 0.4;
-    vec3 finalColor = vec3(0.0);//vec3(dot(fragNormal,vec3(sin(t),cos(t),0)))*0.2;
+    vec3 finalColor = ambientColor;//vec3(dot(fragNormal,vec3(sin(t),cos(t),0)))*0.2;
 
     viewDir = normalize(pos - fragPos);
-
-    Light light;
-    
-    light.position = vec3(1,1,0);
-    light.ambient = vec3(1,1,1);
-    light.diffuse = vec3(1,0,0);
-    light.specular = vec3(1,0.6,0.6);
-    light.constant = 0.1;
-    light.linear = 0.8;
-    light.quadratic = 0.01;
-
-    //finalColor += calculateLighting(light);
     
 
     for(int i = 0; i < numLights; i++) {
-        Light lite;
+        Light light;
+        light.position = positions[i];
+        light.ambient = ambients[i];
+        light.diffuse = diffuses[i];
+        light.specular = speculars[i];
+        light.constant = constants[i];
+        light.linear = linears[i];
+        light.quadratic = quadratics[i];
 
-
-        lite.position = positions[i];
-        lite.ambient = ambients[i];
-        lite.diffuse = diffuses[i];
-        lite.specular = speculars[i];
-        lite.constant = constants[i];
-        lite.linear = linears[i];
-        lite.quadratic = quadratics[i];
-
-        finalColor += calculateLighting(lite);
+        finalColor += calculateLighting(light);
     }
 
     vec3 textureColor = texture(tex, fragUV).rgb;//-(length(pos-fragPos)/5.0)) + (finalColor * textureColor)
