@@ -314,6 +314,9 @@ int main() {
                 bento->setAmbientColor(glm::vec3(ambientColor[0],ambientColor[1],ambientColor[2]));
             }
         }
+        static bool showDemo = false;
+        
+        ImGui::Checkbox("show demo", &showDemo);
 
         ImGui::End();
 
@@ -427,8 +430,7 @@ int main() {
         
         ImGui::End();
 
-
-        //ImGui::ShowDemoWindow(nullptr);
+        if(showDemo)ImGui::ShowDemoWindow(&showDemo);
 
         bento->imguiRender();
 
