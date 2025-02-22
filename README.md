@@ -4,9 +4,7 @@ the bento (ベント) game engine made by yours truly (me)
 
 **currently bento is very bare bones so don't mind that it's missing lot of features that a regular game engine'd have**
 
-free, forever
-
-(this project uses the MIT license so just include that in your project)
+this project uses the MIT license so it's gonna be free so just include that in your project
 
 though obviously in the bento/lib/ folder there are a bunch of files and libraries that are not in fact mine (these include glfw, khr, dr, bullet physics engine, glad, stb image, glm, hidapi, openal soft, dear imgui(best), and more)
 
@@ -22,17 +20,15 @@ deferred rendering / ssao
 
 compile to apps
 
-webgl (expect in a month)(technically also windows)
+webgl (expect ~~in a month~~ NEVER HAHAHAHAHHAHAHAHA)(i'll do it later with emscripten)
 
-windows (a while (months) or less if someone lets me borrow their windows)
-
-vulkan (expect like a week or 2 (or 3 years) after windows comes out)
+vulkan (expect like 4 months or 2 (or 3) years)
 
 ## anything i put here sounds really corporate so you get a large body of large text
 
 ### easy to use
 
-even though bento is written in C++ (best language) which is often regarded as the hardest language to learn, bento wraps all the complicated and sometimes convoluted code into neat little functions.
+even though bento is written in C++ (the best language) which is often regarded as the hardest language to learn, bento wraps all the complicated and sometimes convoluted code into neat little functions.
 
 for example, creating a window is as easy as running
 ```
@@ -44,15 +40,11 @@ by the way c++ is easy idk what they're talking about
 
 ### open source
 
-bento is open source which means that anyone on the interwebs can view this code, download it, and modify it to their heart's content. (although you're on github so you probably know what this means)
-
-because of this, bento will remain free forever (although any games i or anyone else makes on it will NOT be free (i mean, they can be but it's not a requirement))
-
-also any games made on this engine will NEVER need to pay extra fees because it's on the **MIT LICENSE** (just include it in your project for protection, though i'm probably not gonna sue if i see you use this engine either way, i'd just be proud that someone was able to use this incomprehensible mess)
+bento is open source, meaning anyone on the interwebs can view this code, download it, and modify it to their heart's content. (although you're on github so you probably know what this means)
 
 ### lightweight
 
-bento is currently only about 80MB with most of it being other libraries like the bullet physics engine or dear imgui
+bento is less than 100MB
 
 also the example runs at 60+ fps only taking 52-150 MB ram on my computer (opengl takes the same but at a lower fps)
 
@@ -60,17 +52,14 @@ also the example runs at 60+ fps only taking 52-150 MB ram on my computer (openg
 
 bento is (mostly) CROSS-PLATFORM!!!!!
 
-bento was written in opengl **and** metal which means that it's squeeze the most performance it can get from any device it's built on (with webgl and vulkan support coming soon)
-
-also this means that if a game that runs on bento is on a pc platform and is not on another pc platform, then the developer can easily build it for that other platform (it's a bit harder from pc to mobile or console mainly because of the controls and performance)
-
+bento was written in opengl **and** metal
 
 The current supported platforms are:
 - windows
 - mac (native)
 - linux
 
-with support coming soon for:
+with support coming soon (in a while) for:
 - iphone
 - android
 - consoles (nintendo, sony, microsoft)
@@ -103,11 +92,11 @@ to build, open the terminal and run this
 ### MACOS
 
 ```
-sh run.sh -metal <output> <input1> <input2> ...
+sh run.sh -metal -convert <output> <input1> <input2> ...
 ```
 OR
 ```
-sh run.sh -opengl <output> <input1> <input2> ...
+sh run.sh -opengl -convertcore <output> <input1> <input2> ...
 ```
 
 ### LINUX
@@ -118,8 +107,6 @@ sh runlinux.sh <output> <input1> <input2> ...
 ```
 
 ### WINDOWS
-
-WINDOWS IS SO HARD TO WORK WITH AAAAAAAAAAAAA
 
 ```
 run.bat <output> <ONLY ONE INPUT>
