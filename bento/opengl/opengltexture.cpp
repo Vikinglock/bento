@@ -23,5 +23,5 @@ OpenGLTexture::OpenGLTexture(unsigned int tex) {
 }
 
 OpenGLTexture::~OpenGLTexture() {
-    glDeleteTextures(1, &texture);
+    //glDeleteTextures(1, &texture);
 }

@@ -203,6 +203,11 @@ public:
     #endif
 };
 
+
+class Shader{
+
+};
+
 class MetalBento {
 public:
     void init(const char *title, int w, int h, int x = 0, int y = 0);
@@ -252,14 +257,16 @@ public:
 
     //lights
 
-    void addLight(const glm::vec3& position,const glm::vec3& ambient = glm::vec3(1.0f),const glm::vec3& diffuse = glm::vec3(1.0f),const glm::vec3& specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
-    void setLightPos(int index, glm::vec3& position);
+    void addLight(const glm::vec3 position,const glm::vec3 ambient = glm::vec3(1.0f),const glm::vec3 diffuse = glm::vec3(1.0f),const glm::vec3 specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
+    void setLightPos(int index, glm::vec3 position);
     void setLightConstants(int index, float constant);
     void setLightLinears(int index, float linear);
     void setLightQuads(int index, float quad);
-    void setLightAmbients(int index, glm::vec3& ambient);
-    void setLightDiffuses(int index, glm::vec3& diffuse);
-    void setLightSpeculars(int index, glm::vec3& specular);
+    void setLightAmbients(int index, glm::vec3 ambient);
+    void setLightDiffuses(int index, glm::vec3 diffuse);
+    void setLightSpeculars(int index, glm::vec3 specular);
+
+    void setAmbientColor(glm::vec3 ambient);
 
     //debug
 
