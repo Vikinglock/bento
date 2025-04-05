@@ -17,7 +17,19 @@ std::vector<ALuint> buffers;
 id<MTLDevice> device = nil;
 bool fullscreenable = true;
 
+bool useDefShader = true;
 
+std::string vertShaderSourceC = "";
+std::string fragShaderSourceC = "";
+id<MTLRenderPipelineState> defaultPipelineState = nil;
+Shader* shader;
+Shader* defaultShader;
+
+int startAtt;
+int endAtt;
+int startTex;
+int endTex;
+int depthInd;
 
 simd::float3 positions[MAX_LIGHTS];
 simd::float4 constants[MAX_LIGHTS];
@@ -28,6 +40,12 @@ simd::float3 diffuses[MAX_LIGHTS];
 simd::float3 speculars[MAX_LIGHTS];
 simd::float3 amb;
 
+std::vector<id<MTLTexture>> outTexture;
+
+std::vector<id<MTLTexture>> texture;
+std::vector<id<MTLSamplerState>> sampler;
+
+std::vector<id<MTLTexture>> depthTextures;
 
 glm::vec4 clearColor = glm::vec4(0.0,0.0,0.0,1.0);
 
@@ -50,18 +68,15 @@ struct controller{
 @property (nonatomic, strong) NSApplication *app;
 @property (nonatomic, assign) BOOL shouldClose;
 @property (nonatomic, strong) id<MTLDepthStencilState> depthStencilState;
-@property (nonatomic, strong) id<MTLTexture> depthTexture;
 @property (nonatomic, strong) id<MTLTexture> appTexture;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *keyStates;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *mouseStates;
-@property (nonatomic, strong) id<MTLTexture> texture;
-@property (nonatomic, strong) id<MTLSamplerState> sampler;
 @property (nonatomic, strong) id<CAMetalDrawable> drawable;
 @property (nonatomic, strong) id<MTLCommandBuffer> commandBuffer;
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
 @property (nonatomic, strong) NSMutableArray *controllers;
 @property (nonatomic, strong) MTLRenderPassDescriptor *passDescriptor;
-@property (nonatomic, strong) id<MTLTexture> renderTexture;
+@property (nonatomic, strong) id<MTLTexture> depthTexture;
 @property (nonatomic, strong) id<MTLTexture> depthTTexture;
 @property (nonatomic, strong) id<MTLSamplerState> rTSampler;
 @property (nonatomic) int numLights;
@@ -138,6 +153,7 @@ struct controller{
                                                     name:NSWindowWillCloseNotification
                                                 object:self.window];
 
+
         self.keyStates = [NSMutableDictionary dictionary];
         self.mouseStates = [NSMutableDictionary dictionary];
         self.metalLayer = [CAMetalLayer layer];
@@ -151,6 +167,14 @@ struct controller{
 
         //[self toggleFullScreen];
 
+
+        system("glslangValidator -V --quiet ./bento/shaders/shader.vert -o vert.spv");
+        system("glslangValidator -V --quiet ./bento/shaders/shader.frag -o frag.spv");
+        system("spirv-cross vert.spv --msl --output ./bento/shaders/shader.vsmetal");
+        system("spirv-cross frag.spv --msl --output ./bento/shaders/shader.fsmetal");
+        system("./bento/shaders/bindfix ./bento/shaders/shader.vert ./bento/shaders/shader.vsmetal");
+        system("rm vert.spv frag.spv");
+        
         NSString *vertMetalPath = @"./bento/shaders/shader.vsmetal";
         NSString *fragMetalPath = @"./bento/shaders/shader.fsmetal";
         NSError *error = nil;
@@ -173,6 +197,9 @@ struct controller{
             NSLog(@"could not create fragment metal shader library: %@", error);
             return;
         }
+        
+        vertShaderSourceC = std::string([vertShaderSource UTF8String]);
+        fragShaderSourceC = std::string([fragShaderSource UTF8String]);
 
         id<MTLFunction> vertexFunction = [vertLibrary newFunctionWithName:@"main0"];
         id<MTLFunction> fragmentFunction = [fragLibrary newFunctionWithName:@"main0"];
@@ -202,7 +229,18 @@ struct controller{
         MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
         pipelineDescriptor.vertexFunction = vertexFunction;
         pipelineDescriptor.fragmentFunction = fragmentFunction;
-        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+        std::regex colorRegex("\\[\\[color\\((\\d+)\\)\\]\\]");
+        std::smatch match;
+        int highest = 0;
+        std::string::const_iterator start(fragShaderSourceC.cbegin());
+        while (std::regex_search(start, fragShaderSourceC.cend(), match, colorRegex)) {
+            if (match.size()>1)highest = std::max(highest,std::stoi(match[1].str()));
+            start = match.suffix().first;
+        }
+        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatR32Float;
+        for(int i = 0; i <= highest; i++)pipelineDescriptor.colorAttachments[i+1].pixelFormat = MTLPixelFormatBGRA8Unorm;
+
         pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
 
@@ -211,6 +249,9 @@ struct controller{
             NSLog(@"could not create pipeline state: %@", error);
             return;
         }
+        defaultPipelineState = self.pipelineState;
+        defaultShader = new Shader(defaultPipelineState,vertShaderSourceC,fragShaderSourceC);
+        shader = defaultShader;
 
         MTLTextureDescriptor *depthTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
                                                                                                 width:width
@@ -240,25 +281,6 @@ struct controller{
         if (!drawable) {
             return;
         }
-        
-
-        self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-        self.passDescriptor.colorAttachments[0].texture = self.appTexture;
-        self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,clearColor.w);
-        self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-
-        self.passDescriptor.depthAttachment.texture = self.depthTexture;
-        self.passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
-        self.passDescriptor.depthAttachment.clearDepth = 1.0;
-        self.passDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
-
-
-        id<MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
-        self.commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor]; 
-
-        [self.commandEncoder endEncoding];
-        [commandBuffer commit];
         
         self.fullscreenable = true;
         
@@ -292,8 +314,6 @@ struct controller{
         if (self.controllers.count == 0) hid_exit();
         [self controllerInput];
 
-
-        [self.app activateIgnoringOtherApps:YES];
         [self.app finishLaunching];
         
         
@@ -313,8 +333,12 @@ struct controller{
     }
 
     - (void)focus {
+        [self.window setIsVisible:YES];
         [self.window makeKeyAndOrderFront:nil];
         [self.window makeFirstResponder:self.window.contentView];
+        [NSApp activateIgnoringOtherApps:YES];
+        [self.window makeKeyWindow];
+        [self.window orderFront:nil];
     }
 
     - (void)predraw {
@@ -354,19 +378,20 @@ struct controller{
 
     - (void)draw {
         [self.commandEncoder setCullMode:MTLCullModeFront];
-        [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
-        
         [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
         [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
         [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
+        
         [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
         [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
         [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
         [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
 
-        [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
-        [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
+        for(int i=0;i<texture.size();i++){
+            [self.commandEncoder setFragmentTexture:texture[i] atIndex:i];
+            [self.commandEncoder setFragmentSamplerState:sampler[i] atIndex:i];
+        }
 
         [self.commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:self.vertCount];
     }
@@ -390,77 +415,150 @@ struct controller{
         self.wheelX = 0;
     }
     - (void)predrawTex:(int)width height:(int)height {
-
-        if(!self.renderTexture || self.lastWidth!=width || self.lastHeight!=height){
-            [self.renderTexture release];
-            [self.depthTTexture release];
-            MTLTextureDescriptor *texDesc = [[MTLTextureDescriptor alloc] init];
-            texDesc.pixelFormat = MTLPixelFormatBGRA8Unorm;
-            texDesc.width = fmax(1,width);
-            texDesc.height = fmax(1,height);
-            texDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-            self.renderTexture = [self.device newTextureWithDescriptor:texDesc];
-            
-            MTLTextureDescriptor *depthDesc = [[MTLTextureDescriptor alloc] init];
-            depthDesc.pixelFormat = MTLPixelFormatDepth32Float;
-            depthDesc.width = fmax(1,width);
-            depthDesc.height = fmax(1,height);
-            depthDesc.usage = MTLTextureUsageRenderTarget;
-            self.depthTTexture = [self.device newTextureWithDescriptor:depthDesc];
-            self.lastWidth = fmax(1,width);
-            self.lastHeight = fmax(1,height);
-        }
-
         self.commandBuffer = [self.commandQueue commandBuffer];
         self.passDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-        self.passDescriptor.colorAttachments[0].texture = self.renderTexture;
-        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.x,clearColor.y,clearColor.z,1.0);
+        if (!depthTextures[depthInd]) {
+            MTLTextureDescriptor *depthTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatR32Float
+                                                                                                        width:width
+                                                                                                    height:height
+                                                                                                    mipmapped:NO];
+            depthTextureDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            depthTextures[depthInd] = [self.device newTextureWithDescriptor:depthTextureDesc];
+        }
+        self.passDescriptor.colorAttachments[0].texture = depthTextures[depthInd];
+        self.passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
         self.passDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
         self.passDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
+        for (int i = startTex; i < endTex; i++) {
+            if (!outTexture[i]) {
+                MTLTextureDescriptor *textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                                                    width:width
+                                                                                                    height:height
+                                                                                                mipmapped:NO];
+                textureDesc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+                outTexture[i] = [self.device newTextureWithDescriptor:textureDesc];
+            }
+            self.passDescriptor.colorAttachments[startAtt+i+1].texture = outTexture[i];
+            self.passDescriptor.colorAttachments[startAtt+i+1].clearColor = MTLClearColorMake(clearColor.x, clearColor.y, clearColor.z, 1.0);
+            self.passDescriptor.colorAttachments[startAtt+i+1].loadAction = MTLLoadActionClear;
+            self.passDescriptor.colorAttachments[startAtt+i+1].storeAction = MTLStoreActionStore;
+        }
+        if (!self.depthTTexture) {
+            MTLTextureDescriptor *depthTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                                                                    width:width
+                                                                                                    height:height
+                                                                                                mipmapped:NO];
+            depthTextureDesc.usage = MTLTextureUsageRenderTarget;
+            depthTextureDesc.storageMode = MTLStorageModePrivate;
+            self.depthTTexture = [self.device newTextureWithDescriptor:depthTextureDesc];
+        }
         self.passDescriptor.depthAttachment.texture = self.depthTTexture;
         self.passDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
         self.passDescriptor.depthAttachment.clearDepth = 1.0;
         self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
+
         self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
-
-
         int numLights = self.numLights;
-        [self.commandEncoder setFragmentBytes:&numLights length:sizeof(int) atIndex:0];
-        [self.commandEncoder setFragmentBytes:&amb length:sizeof(amb) atIndex:1];
-        [self.commandEncoder setFragmentBytes:positions length:sizeof(positions) atIndex:2];
-        [self.commandEncoder setFragmentBytes:constants length:sizeof(constants) atIndex:3];
-        [self.commandEncoder setFragmentBytes:linears length:sizeof(linears) atIndex:4];
-        [self.commandEncoder setFragmentBytes:quads length:sizeof(quads) atIndex:5];
-        [self.commandEncoder setFragmentBytes:ambients length:sizeof(ambients) atIndex:6];
-        [self.commandEncoder setFragmentBytes:diffuses length:sizeof(diffuses) atIndex:7];
-        [self.commandEncoder setFragmentBytes:speculars length:sizeof(speculars) atIndex:8];
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
+
+
+        if(useDefShader){
+            uint8_t* fragPtr = (uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents;
+            size_t offset = 0;
+            memcpy(fragPtr+shader->uniformMapFrag["numLights"],&numLights,shader->sizeMapFrag["numLights"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["numLights"]<<" | size: "<<shader->sizeMapFrag["numLights"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["ambientColor"],&amb,shader->sizeMapFrag["ambientColor"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["ambientColor"]<<" | size: "<<shader->sizeMapFrag["ambientColor"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["positions"],positions,shader->sizeMapFrag["positions"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["positions"]<<" | size: "<<shader->sizeMapFrag["positions"]<<"\n\n";
+
+            memcpy(fragPtr+shader->uniformMapFrag["constants"],constants,shader->sizeMapFrag["constants"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["constants"]<<" | size: "<<shader->sizeMapFrag["constants"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["linears"],linears,shader->sizeMapFrag["linears"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["linears"]<<" | size: "<<shader->sizeMapFrag["linears"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["quadratics"],quads,shader->sizeMapFrag["quadratics"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["quadratics"]<<" | size: "<<shader->sizeMapFrag["quadratics"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["ambients"],ambients,shader->sizeMapFrag["ambients"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["ambients"]<<" | size: "<<shader->sizeMapFrag["ambients"]<<"\n";
+
+            memcpy(fragPtr+shader->uniformMapFrag["diffuses"],diffuses,shader->sizeMapFrag["diffuses"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["diffuses"]<<" | size: "<<shader->sizeMapFrag["diffuses"]<<"\n";
+            memcpy(fragPtr+shader->uniformMapFrag["speculars"],speculars,shader->sizeMapFrag["speculars"]);
+            //std::cout<<"at: "<<shader->uniformMapFrag["speculars"]<<" | size: "<<shader->sizeMapFrag["speculars"]<<"\n";
+            [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
+            [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+            [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+            [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+        }
+    }
+
+
+    - (void)setShader:(Shader*)shd{
+        shader = shd;
+        [self.commandEncoder setRenderPipelineState:(__bridge id<MTLRenderPipelineState>)shd->pipelineState];
+        useDefShader = shd==defaultShader;
+    }
+
+    - (void)setUniform:(float*)data name:(std::string)name{
+        memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents+shader->uniformMapFrag[name],data,shader->sizeMapFrag[name]);
+    }
+
+    - (void)setUniformInt:(int*)data name:(std::string)name{
+        memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents+shader->uniformMapFrag[name],data,shader->sizeMapFrag[name]);
     }
 
     - (void)drawTex {
+        /*if(!useDefShader){
+            uint8_t* fragPtr = (uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents;
+            for (size_t i = 0; i < ((__bridge id<MTLBuffer>)shader->fragBuffer).length; i++){
+                printf("%02X ",fragPtr[i]);
+                if((i+1)%16==0)printf("\n");
+            }
+            printf("\n");
+        }*/
         [self.commandEncoder setCullMode:MTLCullModeFront];
-        [self.commandEncoder setRenderPipelineState:self.pipelineState];
         [self.commandEncoder setDepthStencilState:self.depthStencilState];
+
         [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
         [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
         [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
-        [self.commandEncoder setFragmentTexture:self.texture atIndex:0];
-        [self.commandEncoder setFragmentSamplerState:self.sampler atIndex:0];
+        
+        if(useDefShader){
+            [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
+            [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
+            [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
+            [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
+        }
+        [self.commandEncoder setFragmentBuffer:(__bridge id<MTLBuffer>)shader->fragBuffer offset:0 atIndex:0];
+        for(int i=0;i<texture.size();i++){
+            [self.commandEncoder setFragmentTexture:texture[i] atIndex:i];
+            [self.commandEncoder setFragmentSamplerState:sampler[i] atIndex:i];
+        }
         [self.commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:self.vertCount];
     }
 
-    - (id<MTLTexture>)renderTex {
+    - (void)renderTex {
         [self.commandEncoder endEncoding];
         [self.commandBuffer commit];
-        return self.renderTexture;
+    }
+
+    - (void)renderTex:(Texture**)tex ind:(int)ind{
+        *tex = new Texture(outTexture[ind],self.rTSampler);
+    }
+
+    - (void)renderDepthTex:(Texture**)tex ind:(int)ind{
+        *tex = new Texture(depthTextures[ind],self.rTSampler);
+    }
+
+    - (void)renderTex:(Texture**)tex1 tex2:(Texture**)tex2 ind:(int)ind{
+        *tex1 = new Texture(outTexture[ind],self.rTSampler);
+        *tex2 = new Texture(outTexture[ind+1],self.rTSampler);
+    } 
+
+    - (void)renderTex:(Texture**)tex1 tex2:(Texture**)tex2 tex3:(Texture**)tex3 ind:(int)ind{
+        *tex1 = new Texture(outTexture[ind],self.rTSampler);
+        *tex2 = new Texture(outTexture[ind+1],self.rTSampler);
+        *tex3 = new Texture(outTexture[ind+2],self.rTSampler);
     }
 
     - (void)windowDidResize:(NSNotification *)notification {
@@ -596,10 +694,6 @@ struct controller{
     }
     - (void)setProjectionMatrix:(const float*)matrix {
         memcpy(self.projection, matrix, sizeof(float) * 16);
-    }
-    - (void)bindTexture:(void*)tex samp:(id<MTLSamplerState>)samp {
-        self.texture = (__bridge id<MTLTexture>)tex;
-        self.sampler = samp;
     }
     //idk at what point it went from pos amb dif spec const lin quad to pos const lin quad amb dif spec but whatever
     - (simd::float3)glmtosimd3:(glm::vec3)v3{return simd::float3{v3.x,v3.y,v3.z};}
@@ -783,7 +877,7 @@ struct controller{
         NSRect contentViewFrame = [self.window contentView].frame;
         NSRect windowFrame = [self.window frame];
 
-        return NSMakePoint(windowFrame.origin.x,windowFrame.origin.y - (windowFrame.size.height - contentViewFrame.size.height));
+        return NSMakePoint(windowFrame.origin.x,windowFrame.origin.y);
     }
 
     - (void)setWindowPos:(NSPoint)pos {
@@ -883,7 +977,7 @@ struct controller{
 
 // #### MAIN ####
 
-    void MetalBento::init(const char *title, int w, int h, int x, int y) {
+    void Bento::init(const char *title, int w, int h, int x, int y) {
         MetalRendererObjC *renderer = [[MetalRendererObjC alloc] init];
         @autoreleasepool {
             [renderer initRenderer:title width:w height:h x:x y:y];
@@ -891,7 +985,7 @@ struct controller{
         this->rendererObjC = (__bridge void*)renderer;
     }
 
-    void MetalBento::initSound(){
+    void Bento::initSound(){
         aldevice = alcOpenDevice(nullptr);
         context = alcCreateContext(aldevice, nullptr);
         if (!context)alcCloseDevice(aldevice);
@@ -899,13 +993,13 @@ struct controller{
         ALenum error = alGetError();
     }
 
-    void MetalBento::setClearColor(glm::vec4 col){
+    void Bento::setClearColor(glm::vec4 col){
         @autoreleasepool {
             clearColor = col;
         }
     }
 
-    void MetalBento::predraw() {
+    void Bento::predraw() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer predraw];
@@ -921,14 +1015,14 @@ struct controller{
         }
     }
 
-    void MetalBento::draw() {
+    void Bento::draw() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer draw];
         }
     }
 
-    void MetalBento::render() {
+    void Bento::render() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer render];
@@ -939,34 +1033,87 @@ struct controller{
                                                         inMode:NSDefaultRunLoopMode
                                                         dequeue:YES])) {
                 [renderer.app sendEvent:event];
-                [renderer.app updateWindows];
                 [renderer updateInput:event];
             }
+            [renderer.app updateWindows];
             [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0 / 144.0]];
         }
     }
-    void MetalBento::predrawTex(int width,int height) {
+    void Bento::predrawTex(int width,int height) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer predrawTex:width height:height];
         }
     }
 
-    void MetalBento::drawTex() {
+    void Bento::drawTex() {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer drawTex];
         }
     }
 
-    Texture* MetalBento::renderTex() {
+    void Bento::renderTex() {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            return new Texture([renderer renderTex],[renderer getSampler]);
+            [renderer renderTex];
         }
     }
 
-    void MetalBento::exit() {
+    void Bento::setActiveTextures(int start, int end){
+        startTex = start;
+        endTex = end+1;
+        if(outTexture.size()<end+1)outTexture.resize(end+1);
+    }
+    void Bento::setActiveTextures(int ind){
+        startTex = ind;
+        endTex = ind+1;
+        if(outTexture.size()<ind+1)outTexture.resize(ind+1);
+    }
+
+    void Bento::setActiveDepthTexture(int ind){
+        depthInd = ind;
+        if(depthTextures.size()<ind+1)depthTextures.resize(ind+1);
+    }
+
+    void Bento::setActiveAttachments(int start, int end){
+        startAtt = start;
+        endAtt = end+1;
+    }
+    void Bento::setActiveAttachments(int ind){
+        startAtt = ind;
+        endAtt = ind+1;
+    }
+
+    void Bento::renderToTex(Texture*& tex,int ind) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer renderTex:&tex ind:ind];
+        }
+    }
+
+    void Bento::renderDepthToTex(Texture*& tex,int ind){
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer renderDepthTex:&tex ind:ind];
+        }
+    }
+
+    void Bento::renderToTex(Texture*& tex1, Texture*& tex2,int ind) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer renderTex:&tex1 tex2:&tex2 ind:ind];
+        }
+    }
+    void Bento::renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer renderTex:&tex1 tex2:&tex2 tex3:&tex3 ind:ind];
+        }
+    }
+
+//return new Texture([renderer renderTex],[renderer getSampler]);
+    void Bento::exit() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             ImGui_ImplMetal_Shutdown();
@@ -986,28 +1133,28 @@ struct controller{
         }
     }
 
-    bool MetalBento::isRunning() {
+    bool Bento::isRunning() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
           return [renderer isRunning];
         }
     }
 
-    void MetalBento::toggleFullscreen(){
+    void Bento::toggleFullscreen(){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer toggleFullScreen];
         }
     }
 
-    void MetalBento::focus(){
+    void Bento::focus(){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer focus];
         }
     }
 
-    bool MetalBento::isWindowFocused() {
+    bool Bento::isWindowFocused() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             return [renderer isWindowFocused];
@@ -1016,42 +1163,42 @@ struct controller{
 
 // #### UNIFORMS ####
 
-    void MetalBento::setVerticesDirect(const std::vector<glm::vec3>& vertices) {
+    void Bento::setVerticesDirect(const std::vector<glm::vec3>& vertices) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
             [renderer setVerticesDirect:vertices];
         }
     }
     
-    void MetalBento::setNormalsDirect(const std::vector<glm::vec3>& normals) {
+    void Bento::setNormalsDirect(const std::vector<glm::vec3>& normals) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
             [renderer setNormalsDirect:normals];
         }
     }
     
-    void MetalBento::setUvsDirect(const std::vector<glm::vec2>& uvs) {
+    void Bento::setUvsDirect(const std::vector<glm::vec2>& uvs) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)rendererObjC;
             [renderer setUvsDirect:uvs];
         }
     }
 
-    void MetalBento::setVertices(class vertexBuffer vs) {
+    void Bento::setVertices(class vertexBuffer vs) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setVertices:(__bridge id<MTLBuffer>)vs.getBuffer() count:vs.size() * 3];
         }
     }
 
-    void MetalBento::setNormals(class normalBuffer ns) {
+    void Bento::setNormals(class normalBuffer ns) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setNormals:(__bridge id<MTLBuffer>)ns.getBuffer() count:ns.size() * 3];
         }
     }
 
-    void MetalBento::setUvs(class uvBuffer uvs) {
+    void Bento::setUvs(class uvBuffer uvs) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setUvs:(__bridge id<MTLBuffer>)uvs.getBuffer() count:uvs.size() * 2];
@@ -1059,46 +1206,55 @@ struct controller{
     }
 
 
-    void MetalBento::setModelMatrix(const glm::mat4 m) {
+    void Bento::setModelMatrix(const glm::mat4 m) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setModelMatrix:(float*)&m];
         }
     }
 
-    void MetalBento::setViewMatrix(const glm::mat4 v,const glm::vec3 p) {
+    void Bento::setViewMatrix(const glm::mat4 v,const glm::vec3 p) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setViewMatrix:(float*)&v pos:p];
         }
     }
 
-    void MetalBento::setProjectionMatrix(const glm::mat4 p) {
+    void Bento::setProjectionMatrix(const glm::mat4 p) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             [renderer setProjectionMatrix:(float*)&p];
         }
     }
 
-    void MetalBento::bindTexture(Texture *tex) {
+    void Bento::bindTexture(Texture *tex, int index) {
         @autoreleasepool {
-            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
-            [renderer bindTexture:tex->getTexture() samp:tex->getSampler()];
+            if (texture.size() <= index) {
+                texture.resize(index + 1);
+                sampler.resize(index + 1);
+            }
+            if (tex) {
+                texture[index] = (__bridge id<MTLTexture>)tex->getTexture();
+                sampler[index] = (__bridge id<MTLSamplerState>)tex->getSampler();
+            } else {
+                texture[index] = nil;
+                sampler[index] = nil;
+            }
         }
     }
 
-    void MetalBento::unbindTexture() {
+    void Bento::unbindTexture() {
 
     }
 // #### INPUT ####
-    bool MetalBento::getKey(int key) {
+    bool Bento::getKey(int key) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             return [renderer.keyStates[@(key)] integerValue];
         }
     }
 
-    bool MetalBento::getMouse(int mouse) {
+    bool Bento::getMouse(int mouse) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
             NSNumber* mouseStateNumber = renderer.mouseStates[@(mouse)];
@@ -1115,7 +1271,7 @@ struct controller{
         }
     }
 
-    double MetalBento::getScroll(int wheel){
+    double Bento::getScroll(int wheel){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             return [renderer getScroll:wheel];
@@ -1123,7 +1279,7 @@ struct controller{
     }
 
 // #### MOUSE AND WINDOWS ####
-    glm::vec2 MetalBento::getWindowSize() {
+    glm::vec2 Bento::getWindowSize() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             NSSize size = [renderer getWindowSize];
@@ -1131,7 +1287,7 @@ struct controller{
         }
     }
 
-    glm::vec2 MetalBento::getWindowPos() {
+    glm::vec2 Bento::getWindowPos() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             NSPoint pos = [renderer getWindowPos];
@@ -1141,14 +1297,14 @@ struct controller{
         }
     }
 
-    void MetalBento::setMouseCursor(bool hide, int cursor) {
+    void Bento::setMouseCursor(bool hide, int cursor) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setMouseCursor:cursor hidden:hide];
         }
     }
 
-    glm::vec2 MetalBento::getMousePosition() {
+    glm::vec2 Bento::getMousePosition() {
         @autoreleasepool {
             glm::vec2 dsize = getDisplaySize();
             CGPoint mouseLocation = [NSEvent mouseLocation];
@@ -1156,7 +1312,7 @@ struct controller{
         }
     }
 
-    void MetalBento::setMousePosition(glm::vec2 pos, bool needsFocus) {
+    void Bento::setMousePosition(glm::vec2 pos, bool needsFocus) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             if ([renderer isWindowFocused]) {
@@ -1169,7 +1325,7 @@ struct controller{
     }
 
 
-    void MetalBento::setWindowPos(glm::vec2 pos) {
+    void Bento::setWindowPos(glm::vec2 pos) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             glm::vec2 wSize = getWindowSize();
@@ -1179,7 +1335,7 @@ struct controller{
     }
 
 
-    glm::vec2 MetalBento::getControllerAxis(int controller, JoystickType joystick) {
+    glm::vec2 Bento::getControllerAxis(int controller, JoystickType joystick) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             NSPoint point = [renderer getControllerAxis:controller type:(joystick==GAMEPAD_JOYSTICK_LEFT?1:joystick==GAMEPAD_JOYSTICK_RIGHT?0:-1)];
@@ -1187,14 +1343,14 @@ struct controller{
         }
     }
     
-    bool MetalBento::getControllerButton(int controller, ButtonType button){
+    bool Bento::getControllerButton(int controller, ButtonType button){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             return [renderer getControllerButton:controller button:button];
         }
     }
 
-    glm::vec2 MetalBento::getDisplaySize() {
+    glm::vec2 Bento::getDisplaySize() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             NSSize size = [renderer getDisplaySize];
@@ -1247,7 +1403,7 @@ struct controller{
 
 
 
-    void MetalBento::initImgui() {
+    void Bento::initImgui() {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             IMGUI_CHECKVERSION();
@@ -1263,7 +1419,7 @@ struct controller{
     }
 
     
-    void MetalBento::imguiNewFrame() {
+    void Bento::imguiNewFrame() {
         @autoreleasepool {
             ImGuiIO& io = ImGui::GetIO();
             glm::vec2 size = getWindowSize();
@@ -1275,7 +1431,7 @@ struct controller{
     }
 
 
-    void MetalBento::imguiRender() {
+    void Bento::imguiRender() {
         @autoreleasepool {
             ImGui::Render();
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
@@ -1285,7 +1441,7 @@ struct controller{
 
 // #### LIGHTING ####
     //FUYDAOSJDWOAKLAWFHIUOSNFOBEFDOUWNKLDWASNIOFAWNDLSA
-    void MetalBento::addLight(const glm::vec3 pos,const glm::vec3 ambient,const glm::vec3 diffuse,const glm::vec3 specular,float constant,float linear,float quadratic) {
+    void Bento::addLight(const glm::vec3 pos,const glm::vec3 ambient,const glm::vec3 diffuse,const glm::vec3 specular,float constant,float linear,float quadratic) {
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer addLight:pos
@@ -1297,57 +1453,389 @@ struct controller{
                      quadratic:quadratic];
         }
     }
-    void MetalBento::setLightPos(int index, glm::vec3 position){
+    void Bento::setLightPos(int index, glm::vec3 position){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightPos:index position:position];
         }
     }
-    void MetalBento::setLightConstants(int index, float constant){
+    void Bento::setLightConstants(int index, float constant){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightConstants:index constant:constant];
         }
     }
-    void MetalBento::setLightLinears(int index, float linear){
+    void Bento::setLightLinears(int index, float linear){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightLinears:index linear:linear];
         }
     }
-    void MetalBento::setLightQuads(int index, float quad){
+    void Bento::setLightQuads(int index, float quad){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightQuads:index quad:quad];
         }
     }
-    void MetalBento::setLightAmbients(int index, glm::vec3 ambient){
+    void Bento::setLightAmbients(int index, glm::vec3 ambient){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightAmbients:index ambient:ambient];
         }
     }
-    void MetalBento::setLightDiffuses(int index, glm::vec3 diffuse){
+    void Bento::setLightDiffuses(int index, glm::vec3 diffuse){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightDiffuses:index diffuse:diffuse];
         }
     }
-    void MetalBento::setLightSpeculars(int index, glm::vec3 specular){
+    void Bento::setLightSpeculars(int index, glm::vec3 specular){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setLightSpeculars:index specular:specular];
         }
     }
-    void MetalBento::setAmbientColor(glm::vec3 ambient){
+    void Bento::setAmbientColor(glm::vec3 ambient){
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setAmbientColor:ambient];
         }
     }
 
-    std::string MetalBento::getFramework(){
+    std::string Bento::getFramework(){
         @autoreleasepool {
             return "Metal";
         }
+    }
+
+    void Bento::setShader(Shader* shd){
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            [renderer setShader:shd];
+            shader = shd;
+        }
+    }
+
+    Shader* Bento::getDefaultShader(){
+        return defaultShader;
+    }
+    struct uniformData {
+        std::unordered_map<std::string, int> uniformMap;
+        std::unordered_map<std::string, int> sizeMap;
+        int size;
+    };
+    uniformData extractUniforms(const std::string& shaderSource, bool isVertex = false) {
+        uniformData uniforms;
+        int currentOffset = 0;
+        int totalSize = 0;
+        std::regex structRegex(R"(struct\s+Uniforms\s*\{([^}]*)\};)");
+        std::regex uniformRegex(R"(\s*(\w+)\s+(\w+)(\[\d+\])?;)");
+        std::smatch structMatch;
+        if (std::regex_search(shaderSource, structMatch, structRegex)) {
+            std::string structBody = structMatch[1].str();
+            std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
+            std::sregex_iterator end;
+            for (auto it = begin; it != end; ++it) {
+                std::string type = (*it)[1].str();
+                std::string name = (*it)[2].str();
+                std::string arraySize = (*it)[3].str();
+                int typeSize = 0;
+                if(type=="int")typeSize=sizeof(int)*4;
+                else if(type=="float")typeSize=sizeof(float)*4;
+                else if(type=="float2")typeSize=sizeof(float)*4;
+                else if(type=="float3")typeSize=sizeof(float)*4;
+                else if(type=="float4")typeSize=sizeof(float)*4;
+                else if(type=="mat4")typeSize=sizeof(float)*16;
+                else if(type=="double")typeSize=sizeof(double);
+                else if(type=="double2")typeSize=sizeof(double)*4;
+                else if(type=="double3")typeSize=sizeof(double)*4;
+                else if(type=="double4")typeSize=sizeof(double)*4;
+                int arrayCount = 1;
+                if (!arraySize.empty()) {
+                    std::regex arraySizeRegex(R"(\[(\d+)\])");
+                    std::smatch arraySizeMatch;
+                    if (std::regex_match(arraySize, arraySizeMatch, arraySizeRegex)) {
+                        arrayCount = std::stoi(arraySizeMatch[1].str());
+                    }
+                }
+                uniforms.uniformMap[name] = currentOffset;
+                currentOffset += typeSize * arrayCount;
+                uniforms.sizeMap[name] = typeSize * arrayCount;
+                totalSize += typeSize * arrayCount;
+            }
+        }
+        uniforms.size = totalSize;
+        return uniforms;
+    }
+
+    std::string Bento::getUni(){
+        @autoreleasepool {
+            std::string out;
+            int size = 0;
+            uniformData uniforms = extractUniforms(vertShaderSourceC,true);
+
+            out.append("VERTEX : ");
+            out.append(std::to_string(uniforms.size));
+            out.append("\n");
+            for (const auto& [name, index] : uniforms.uniformMap) {
+                out.append(name);
+                out.append(" : ");
+                out.append(std::to_string(index));
+                out.append(" : ");
+                out.append(std::to_string(uniforms.sizeMap[name]));
+                out.append("\n");
+            }
+            uniforms = extractUniforms(fragShaderSourceC);
+            out.append("FRAGMENT : ");
+            out.append(std::to_string(uniforms.size));
+            out.append("\n");
+            for (const auto& [name, index] : uniforms.uniformMap) {
+                out.append(name);
+                out.append(" : ");
+                out.append(std::to_string(index));
+                out.append(" : ");
+                out.append(std::to_string(uniforms.sizeMap[name]));
+                out.append("\n");
+            }
+            return out;
+        }
+    }
+
+    void Bento::setUniform(std::string uniformName, glm::vec3 value) {
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setUniform:glm::value_ptr(value) name:uniformName];
+        }
+    }
+
+
+    void Bento::setUniform(std::string uniformName, float value){
+        @autoreleasepool {
+            float v = static_cast<float>(value);
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setUniform:&v name:uniformName];
+        }
+    }
+    void Bento::setUniform(std::string uniformName, int value){
+        @autoreleasepool {
+            int v = static_cast<int>(value);
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setUniformInt:&v name:uniformName];
+        }
+    }
+    void Bento::setUniform(std::string uniformName, glm::vec2 value){
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setUniform:glm::value_ptr(value) name:uniformName];
+        }
+    }
+    void Bento::setUniform(std::string uniformName, glm::mat4 value){
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            [renderer setUniform:glm::value_ptr(value) name:uniformName];
+        }
+    }
+
+    class ShaderImpl {
+    public:
+
+        id<MTLRenderPipelineState> pipelineState;
+        id<MTLBuffer> fragBuffer;
+        id<MTLBuffer> vertBuffer;
+        std::string vertSource = "";
+        std::string fragSource = "";
+        std::unordered_map<std::string, int> uniformMapVert;
+        std::unordered_map<std::string, int> sizeMapVert;
+        std::unordered_map<std::string, int> uniformMapFrag;
+        std::unordered_map<std::string, int> sizeMapFrag;
+        
+        ShaderImpl(std::string vertPath, std::string fragPath) {
+            @autoreleasepool {
+                std::cout << "compiling "+vertPath+" and "+fragPath;
+                system(("glslangValidator -V --quiet " + vertPath + " -o vert.spv").c_str());
+                system(("glslangValidator -V --quiet " + fragPath + " -o frag.spv").c_str());
+                std::string vertSrcPath = vertPath;
+                vertPath = vertPath.erase(vertPath.size() - 5)+".vsmetal";
+                fragPath = fragPath.erase(fragPath.size() - 5)+".fsmetal";
+                std::cout << " to "+vertPath+" and "+fragPath+"\n";
+                system(("spirv-cross vert.spv --msl --output " + vertPath).c_str());
+                system(("spirv-cross frag.spv --msl --output " + fragPath).c_str());
+                system(("./bento/shaders/bindfix " + vertSrcPath + " " + vertPath).c_str());
+                system("rm vert.spv frag.spv");
+
+                NSString *vertMetalPath = [NSString stringWithUTF8String:vertPath.c_str()];
+                NSString *fragMetalPath = [NSString stringWithUTF8String:fragPath.c_str()];
+                NSError *error = nil;
+
+                NSString *vertShaderSource = [NSString stringWithContentsOfFile:vertMetalPath encoding:NSUTF8StringEncoding error:&error];
+                NSString *fragShaderSource = [NSString stringWithContentsOfFile:fragMetalPath encoding:NSUTF8StringEncoding error:&error];
+                if (error) {
+                    NSLog(@"could not load shader file: %@", error);
+                    return;
+                }
+
+                id<MTLLibrary> vertLibrary = [device newLibraryWithSource:vertShaderSource options:nil error:&error];
+                if (!vertLibrary) {
+                    NSLog(@"could not create vertex metal shader library: %@", error);
+                    return;
+                }
+
+                id<MTLLibrary> fragLibrary = [device newLibraryWithSource:fragShaderSource options:nil error:&error];
+                if (!fragLibrary) {
+                    NSLog(@"could not create fragment metal shader library: %@", error);
+                    return;
+                }
+                
+                
+                vertSource = std::string([vertShaderSource UTF8String]);
+                fragSource = std::string([fragShaderSource UTF8String]);
+
+                id<MTLFunction> vertexFunction = [vertLibrary newFunctionWithName:@"main0"];
+                id<MTLFunction> fragmentFunction = [fragLibrary newFunctionWithName:@"main0"];
+
+                MTLVertexDescriptor *vertexDescriptor = [[MTLVertexDescriptor alloc] init];
+
+                vertexDescriptor.attributes[0].format = MTLVertexFormatFloat3;
+                vertexDescriptor.attributes[0].offset = 0;
+                vertexDescriptor.attributes[0].bufferIndex = 0;
+                vertexDescriptor.attributes[1].format = MTLVertexFormatFloat3;
+                vertexDescriptor.attributes[1].offset = 0;
+                vertexDescriptor.attributes[1].bufferIndex = 1;
+                vertexDescriptor.attributes[2].format = MTLVertexFormatFloat2;
+                vertexDescriptor.attributes[2].offset = 0;
+                vertexDescriptor.attributes[2].bufferIndex = 2;
+                vertexDescriptor.layouts[0].stride = sizeof(float) * 3;
+                vertexDescriptor.layouts[1].stride = sizeof(float) * 3;
+                vertexDescriptor.layouts[2].stride = sizeof(float) * 2;
+                vertexDescriptor.layouts[0].stepRate = 1;
+                vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+
+
+                MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+                pipelineDescriptor.vertexFunction = vertexFunction;
+                pipelineDescriptor.fragmentFunction = fragmentFunction;
+
+                std::regex colorRegex("\\[\\[color\\((\\d+)\\)\\]\\]");
+                std::smatch match;
+                int highest = 0;
+                std::string::const_iterator start(fragSource.cbegin());
+                while (std::regex_search(start, fragSource.cend(), match, colorRegex)) {
+                    if (match.size()>1)highest = std::max(highest,std::stoi(match[1].str()));
+                    start = match.suffix().first;
+                }
+                pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatR32Float;
+                for(int i = 0; i <= highest; i++)pipelineDescriptor.colorAttachments[i+1].pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+                pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+                pipelineDescriptor.vertexDescriptor = vertexDescriptor;
+
+                pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
+                if (!pipelineState) {
+                    NSLog(@"could not create pipeline state: %@", error);
+                    return;
+                }
+
+                int currentOffset = 0;
+                int totalSize = 0;
+                std::regex inputStructRegex(R"(struct\s+main0_in\s*\{([^}]*)\};)");
+                std::regex inputRegex(R"(\s*(\w+\d*)\s+(\w+)\s*\[\[.*?\]\];)");
+                std::smatch inputStructMatch;
+                if (std::regex_search(vertSource, inputStructMatch, inputStructRegex)) {
+                    std::string inputStructBody = inputStructMatch[1].str();
+                    std::sregex_iterator begin(inputStructBody.begin(), inputStructBody.end(), inputRegex);
+                    std::sregex_iterator end;
+                    for (auto it = begin; it != end; ++it) {
+                        std::string type = (*it)[1].str();
+                        std::string name = (*it)[2].str();
+                    }
+                }
+                std::regex structRegex(R"(struct\s+Uniforms\s*\{([^}]*)\};)");
+                std::regex uniformRegex(R"(\s*(\w+)\s+(\w+)(\[\d+\])?;)");
+                std::smatch structMatch;
+                if (std::regex_search(vertSource, structMatch, structRegex)) {
+                    std::string structBody = structMatch[1].str();
+                    std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
+                    std::sregex_iterator end;
+                    for (auto it = begin; it != end; ++it) {
+                        std::string type = (*it)[1].str();
+                        std::string name = (*it)[2].str();
+                        std::string arraySize = (*it)[3].str();
+                        int typeSize = 0;
+                        if(type=="int")typeSize=sizeof(int);
+                        else if(type=="float")typeSize=sizeof(float);
+                        else if(type=="float2")typeSize=sizeof(float)*2;
+                        else if(type=="float3")typeSize=sizeof(float)*3;
+                        else if(type=="float4")typeSize=sizeof(float)*4;
+                        else if(type=="mat4")typeSize=sizeof(float)*16;
+                        else if(type=="double")typeSize=sizeof(double);
+                        else if(type=="double2")typeSize=sizeof(double)*2;
+                        else if(type=="double3")typeSize=sizeof(double)*3;
+                        else if(type=="double4")typeSize=sizeof(double)*4;
+                        int arrayCount = 1;
+                        if (!arraySize.empty()) {
+                            std::regex arraySizeRegex(R"(\[(\d+)\])");
+                            std::smatch arraySizeMatch;
+                            if (std::regex_match(arraySize, arraySizeMatch, arraySizeRegex)) {
+                                arrayCount = std::stoi(arraySizeMatch[1].str());
+                            }
+                        }
+                        currentOffset += typeSize * arrayCount;
+                        uniformMapVert[name] = currentOffset;
+                        totalSize += typeSize * arrayCount;
+                    }
+                }
+                vertBuffer = [device newBufferWithLength:totalSize options:MTLResourceStorageModeShared];
+                currentOffset = 0;
+                totalSize = 0;
+                if (std::regex_search(fragSource, structMatch, structRegex)) {
+                    std::string structBody = structMatch[1].str();
+                    std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
+                    std::sregex_iterator end;
+                    for (auto it = begin; it != end; ++it) {
+                        std::string type = (*it)[1].str();
+                        std::string name = (*it)[2].str();
+                        std::string arraySize = (*it)[3].str();
+                        int typeSize = 0;
+                        if(type=="int")typeSize=sizeof(int);
+                        else if(type=="float")typeSize=sizeof(float);
+                        else if(type=="float2")typeSize=sizeof(float)*4;
+                        else if(type=="float3")typeSize=sizeof(float)*4;
+                        else if(type=="float4")typeSize=sizeof(float)*4;
+                        else if(type=="mat4")typeSize=sizeof(float)*16;
+                        else if(type=="double")typeSize=sizeof(double);
+                        else if(type=="double2")typeSize=sizeof(double)*4;
+                        else if(type=="double3")typeSize=sizeof(double)*4;
+                        else if(type=="double4")typeSize=sizeof(double)*4;
+                        int arrayCount = 1;
+                        if (!arraySize.empty()) {
+                            std::regex arraySizeRegex(R"(\[(\d+)\])");
+                            std::smatch arraySizeMatch;
+                            if (std::regex_match(arraySize, arraySizeMatch, arraySizeRegex)) {
+                                arrayCount = std::stoi(arraySizeMatch[1].str());
+                            }
+                        }
+                        uniformMapFrag[name] = currentOffset;
+                        currentOffset += typeSize * arrayCount;
+                        sizeMapFrag[name] = typeSize * arrayCount;
+                        totalSize += typeSize * arrayCount;
+                    }
+                }
+                fragBuffer = [device newBufferWithLength:totalSize options:MTLResourceStorageModeShared];
+            }
+        }
+    };
+
+
+    Shader::Shader(const char* vertPath, const char* fragPath) {
+        impl = new ShaderImpl(vertPath, fragPath);
+
+        pipelineState = impl->pipelineState;
+        fragBuffer = impl->fragBuffer;
+        vertBuffer = impl->vertBuffer;
+        vertSource = impl->vertSource;
+        fragSource = impl->fragSource;
+        uniformMapVert = impl->uniformMapVert;
+        sizeMapVert = impl->sizeMapVert;
+        uniformMapFrag = impl->uniformMapFrag;
+        sizeMapFrag = impl->sizeMapFrag;
     }

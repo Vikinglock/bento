@@ -20,11 +20,13 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <regex>
 
 #include "../lib/AL/al.h"
 #include "../lib/AL/alc.h"
 #include "../sound/soundcommon.h"
 
+class Bento;
 
 enum{
     //  #####     KEYS     #####
@@ -161,13 +163,28 @@ public:
 
 
 
-class Shader {
+class Shader{
+public:
+    Shader(std::string vertPath, std::string fragPath);
+    Shader(GLuint prgm,std::string vS,std::string fS){
+        program = prgm;
+        vertSource = vS;
+        fragSource = fS;
+    }
+    ~Shader(){
+        glDeleteProgram(program);
+    }
 
+    std::string getUni();
+    
+    GLuint program;
+    std::string vertSource = "";
+    std::string fragSource = "";
 };
 
 
 
-class OpenGLBento {
+class Bento {
 public:
     void init(const char *title, int width, int height, int x = 0, int y = 0);
     void initSound();
@@ -200,14 +217,40 @@ public:
     bool getControllerButton(int controller, ButtonType button);
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
-    void bindTexture(class Texture *tex);
+    void bindTexture(class Texture *tex,int index);
     void unbindTexture();
+    void setActiveTextures(int start, int end);
+    void setActiveTextures(int ind);
+    void setActiveDepthTexture(int ind);
+    void setActiveAttachments(int start, int end);
+    void setActiveAttachments(int ind);
     void predrawTex(int width,int height);
     void drawTex();
-    Texture* renderTex();
+    void renderTex();
+    void renderToTex(Texture*& tex1,int ind);
+    void renderDepthToTex(Texture*& tex,int ind);
+    void renderToTex(Texture*& tex1, Texture*& tex2,int ind);
+    void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
     void setShader(Shader* shader);
-    void resetShader();
+    void setUniform(std::string uniformName, float value, bool onVertex = false){
+        glUniform1f(glGetUniformLocation(shader->program, uniformName.c_str()),value);
+    }
+    void setUniform(std::string uniformName, int value, bool onVertex = false){
+        glUniform1i(glGetUniformLocation(shader->program, uniformName.c_str()),value);
+    }
+    void setUniform(std::string uniformName, glm::vec2 value, bool onVertex = false){
+        glUniform2fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);
+    }
+    void setUniform(std::string uniformName, glm::vec3 value, bool onVertex = false){
+        glUniform3fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);
+    }
+    void setUniform(std::string uniformName, glm::mat4 value, bool onVertex = false){
+        glUniformMatrix4fv(glGetUniformLocation(shader->program, uniformName.c_str()), 1, GL_FALSE, &value[0][0]);
+    }
+
     void exit();
+
+    Shader* getDefaultShader();
 
     //imgui
 
@@ -242,9 +285,11 @@ public:
         #endif
     }
 
+    std::string getUni();
+
 private:
-    bool defaultShader;
     int numLights;
+    int startAtt, endAtt, startRT, endRT, dTInd;
     glm::vec3 positions[MAX_LIGHTS];
     float constants[MAX_LIGHTS];
     float linears[MAX_LIGHTS];
@@ -253,19 +298,19 @@ private:
     glm::vec3 diffuses[MAX_LIGHTS];
     glm::vec3 speculars[MAX_LIGHTS];
 
-    Shader* currentShader;
-
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer;//, ubo, uboIndex; me when macos (they just don't work idk why)
                                                              // i'll redo it as soon as they make windows more fun to work on (or i guess i could just use linux)
-    GLuint framebuffer, colorTexture, depthTexture;
+    GLuint framebuffer,depthRTexture;
+    std::vector<GLuint> texture,depthTexture;
     GLuint fbo, screenTex, rbo;
     GLint tvp[4];
     float fboWidth, fboHeight;
     GLuint qvao, qvertexBuffer, quvBuffer;
 
-    GLuint shader, postShader;//is the entire shader stored in the uint because that'd be pretty crazy
-
     GLFWwindow* window;
+
+    Shader* shader;//no, no it is not.
+    Shader* defaultShader;
 
     GLuint modelLoc;
     GLuint viewLoc;

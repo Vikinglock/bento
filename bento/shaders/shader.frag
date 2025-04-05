@@ -13,18 +13,25 @@ struct Light {
     vec3 specular;
 };
 
-layout(location = 0) out vec4 fragColor;
+layout(location = 0) out float depth;
+layout(location = 1) out vec4 fragColor;
+layout(location = 2) out vec4 fragNormalOut;
+layout(location = 3) out vec4 fragUVOut;
+layout(location = 4) out vec4 fragPosOut;
+
+
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec2 fragUV;
-layout(location = 3) in vec3 viewPos;
-layout(location = 4) in vec3 pos;
+layout(location = 3) in vec4 fragUPos;
+layout(location = 4) in vec3 viewPos;
+layout(location = 5) in vec3 pos;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
 
-layout(set = 0, binding = 7) uniform Uniforms {
+layout(set = 0, binding = 7) uniform Uniforms {//HAS TO BE NAMED "UNIFORMS"
     int numLights;
-    
+
     vec3 ambientColor;
     
     vec3 positions[MAX_LIGHTS];
@@ -36,11 +43,11 @@ layout(set = 0, binding = 7) uniform Uniforms {
     vec3 ambients[MAX_LIGHTS];
     vec3 diffuses[MAX_LIGHTS];
     vec3 speculars[MAX_LIGHTS];
+    float tspecular;
 };
 
 vec3 viewDir;
 
-float tspecular = 100.0;
 
 vec3 calculateLighting(Light light) {
     vec3 lightDir = normalize(light.position - fragPos);
@@ -80,7 +87,12 @@ void main() {
     }
 
     vec3 textureColor = texture(tex, fragUV).rgb;//-(length(pos-fragPos)/5.0)) + (finalColor * textureColor)
-    fragColor = vec4(finalColor * textureColor, 1.0);
+    fragColor = vec4(textureColor*finalColor, 1.0);
+    fragNormalOut = vec4(fragNormal / 2.0 + 0.5,1.0);
+    fragUVOut = vec4(fragUV,0.0,1.0);
+
+    depth = fragUPos.z;
+    fragPosOut = vec4(fragPos,1.0);
 }
 
 

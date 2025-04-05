@@ -2,13 +2,10 @@
 #define BENTO_H
 #ifdef USE_METAL
 #include "metal/metal.h"
-class Bento : public MetalBento {};
 #elif USE_OPENGL
 #include "opengl/opengl.h"
-class Bento : public OpenGLBento {};
 #else
 #include "opengl/opengl.h"
-class Bento : public OpenGLBento {};
 #endif
 
 #define pi 3.1415926535
@@ -88,7 +85,7 @@ public:
         bento->setUvs(mesh.getUVBuffer());
         bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
         if(texture){
-            bento->bindTexture(texture);
+            bento->bindTexture(texture,0);
         }
 
         bento->draw();
@@ -99,7 +96,7 @@ public:
         bento->setUvs(mesh.getUVBuffer());
         bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
         if(texture){
-            bento->bindTexture(texture);
+            bento->bindTexture(texture,0);
         }
 
         bento->drawTex();
@@ -115,71 +112,76 @@ private:
 
 
 void loadOBJ(const char *path, std::vector<glm::vec3> &out_vertices, std::vector<glm::vec2> &out_uvs, std::vector<glm::vec3> &out_normals) {
-    std::vector<unsigned int> vertexIndices, uvIndices, normalIndices;
     std::vector<glm::vec3> temp_vertices;
     std::vector<glm::vec2> temp_uvs;
     std::vector<glm::vec3> temp_normals;
     
-    FILE *file = fopen(path, "r");
-    if (file == NULL) {
-        printf("Error opening file %s\n", path);
-        return;
-    }
-
-    char lineHeader[1000];
-    while (fscanf(file, "%s", lineHeader) != EOF) {
-        if (strcmp(lineHeader, "v") == 0) {
+    std::ifstream file(path);
+    if (!file.is_open())printf("Error opening file %s\n", path);
+    
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string type;
+        iss >> type;
+        if (type == "v") {
             glm::vec3 vertex;
-            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
+            iss >> vertex.x >> vertex.y >> vertex.z;
             temp_vertices.push_back(vertex);
-        } else if (strcmp(lineHeader, "vt") == 0) {
+        }
+        else if (type == "vt") {
             glm::vec2 uv;
-            fscanf(file, "%f %f\n", &uv.x, &uv.y);
-            uv.y = uv.y;
+            iss >> uv.x >> uv.y;
             temp_uvs.push_back(uv);
-        } else if (strcmp(lineHeader, "vn") == 0) {
+        }
+        else if (type == "vn") {
             glm::vec3 normal;
-            fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
+            iss >> normal.x >> normal.y >> normal.z;
             temp_normals.push_back(normal);
-        } else if (strcmp(lineHeader, "f") == 0) {
-            unsigned int vertexIndex[3], uvIndex[3], normalIndex[3];
-            int matches = fscanf(file, "%u/%u/%u %u/%u/%u %u/%u/%u\n",
-                                 &vertexIndex[0], &uvIndex[0], &normalIndex[0],
-                                 &vertexIndex[1], &uvIndex[1], &normalIndex[1],
-                                 &vertexIndex[2], &uvIndex[2], &normalIndex[2]);
-            if (matches != 9) {
-                printf("Error reading face data\n");
-                fclose(file);
-                return;
+        }
+        else if (type == "f") {
+            std::vector<int> vertexIndices;
+            std::vector<int> uvIndices;
+            std::vector<int> normalIndices;
+            
+            std::string faceToken;
+            while (iss >> faceToken) {
+                int vertexIndex = -1;
+                int uvIndex = -1;
+                int normalIndex = -1;
+                
+                std::istringstream tokenStream(faceToken);
+                std::string segment;
+                std::getline(tokenStream, segment, '/');
+                if(!segment.empty())vertexIndex = std::stoi(segment) - 1;
+                std::getline(tokenStream, segment, '/');
+                if(!segment.empty())uvIndex = std::stoi(segment) - 1;
+                std::getline(tokenStream, segment);
+                if(!segment.empty())normalIndex = std::stoi(segment) - 1;
+                vertexIndices.push_back(vertexIndex);
+                uvIndices.push_back(uvIndex);
+                normalIndices.push_back(normalIndex);
             }
-            vertexIndices.push_back(vertexIndex[0]);
-            vertexIndices.push_back(vertexIndex[1]);
-            vertexIndices.push_back(vertexIndex[2]);
-            uvIndices.push_back(uvIndex[0]);
-            uvIndices.push_back(uvIndex[1]);
-            uvIndices.push_back(uvIndex[2]);
-            normalIndices.push_back(normalIndex[0]);
-            normalIndices.push_back(normalIndex[1]);
-            normalIndices.push_back(normalIndex[2]);
-        } else {
-            char stupidBuffer[1000];
-            fgets(stupidBuffer, 1000, file);
+            for (size_t i = 1; i < vertexIndices.size() - 1; i++) {
+                if(vertexIndices[0] >= 0 && vertexIndices[0] < temp_vertices.size())out_vertices.push_back(temp_vertices[vertexIndices[0]]);
+                if(uvIndices[0] >= 0 && uvIndices[0] < temp_uvs.size())out_uvs.push_back(temp_uvs[uvIndices[0]]);
+                else if(!temp_uvs.empty())out_uvs.push_back(glm::vec2(0.0f, 0.0f));
+                if(normalIndices[0] >= 0 && normalIndices[0] < temp_normals.size())out_normals.push_back(temp_normals[normalIndices[0]]);
+                else if (!temp_normals.empty())out_normals.push_back(glm::vec3(0.0f, 0.0f, 1.0f));
+
+                if(vertexIndices[i] >= 0 && vertexIndices[i] < temp_vertices.size())out_vertices.push_back(temp_vertices[vertexIndices[i]]);
+                if(uvIndices[i] >= 0 && uvIndices[i] < temp_uvs.size())out_uvs.push_back(temp_uvs[uvIndices[i]]);
+                else if(!temp_uvs.empty())out_uvs.push_back(glm::vec2(0.0f, 0.0f));
+                if(normalIndices[i] >= 0 && normalIndices[i] < temp_normals.size())out_normals.push_back(temp_normals[normalIndices[i]]);
+                else if(!temp_normals.empty())out_normals.push_back(glm::vec3(0.0f, 0.0f, 1.0f));
+                
+                if(vertexIndices[i+1] >= 0 && vertexIndices[i+1] < temp_vertices.size())out_vertices.push_back(temp_vertices[vertexIndices[i+1]]);
+                if(uvIndices[i+1] >= 0 && uvIndices[i+1] < temp_uvs.size())out_uvs.push_back(temp_uvs[uvIndices[i+1]]);
+                else if(!temp_uvs.empty())out_uvs.push_back(glm::vec2(0.0f, 0.0f));
+                if(normalIndices[i+1] >= 0 && normalIndices[i+1] < temp_normals.size())out_normals.push_back(temp_normals[normalIndices[i+1]]);
+                else if(!temp_normals.empty())out_normals.push_back(glm::vec3(0.0f, 0.0f, 1.0f));
+            }
         }
     }
-
-    for (size_t i = 0; i < vertexIndices.size(); i++) {
-        unsigned int vertexIndex = vertexIndices[i];
-        unsigned int uvIndex = uvIndices[i];
-        unsigned int normalIndex = normalIndices[i];
-
-        glm::vec3 vertex = temp_vertices[vertexIndex - 1];
-        glm::vec2 uv = temp_uvs[uvIndex - 1];
-        glm::vec3 normal = temp_normals[normalIndex - 1];
-
-        out_vertices.push_back(vertex);
-        out_uvs.push_back(uv);
-        out_normals.push_back(normal);
-    }
-    fclose(file);
 }
 #endif

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <string>
+#include <regex>
 #include <simd/simd.h>
 
 #include "../lib/glm/glm.hpp"
@@ -28,6 +29,8 @@
 #import <Metal/Metal.h>
 #include "metalcommon.h"
 #endif
+
+class Bento;
 
 enum {
     //  #####     KEYS     #####
@@ -217,12 +220,146 @@ public:
     #endif
 };
 
+class ShaderImpl;
 
 class Shader{
+private:
+    ShaderImpl* impl;
+public:
+    Shader(const char* vertPath, const char* fragPath);
 
+    std::string getUni(){
+        std::string out;
+        out.append("VERTEX : ");
+        out.append("\n");
+        for (const auto& [name, index] : uniformMapVert) {
+            out.append(name);
+            out.append(" : ");
+            out.append(std::to_string(index));
+            out.append(" : ");
+            out.append(std::to_string(sizeMapVert[name]));
+            out.append("\n");
+        }
+        out.append("FRAGMENT : ");
+        out.append("\n");
+        for (const auto& [name, index] : uniformMapFrag) {
+            out.append(name);
+            out.append(" : ");
+            out.append(std::to_string(index));
+            out.append(" : ");
+            out.append(std::to_string(sizeMapFrag[name]));
+            out.append("\n");
+        }
+        return out;
+    }
+    #ifdef __OBJC__
+    Shader(id<MTLRenderPipelineState> plState,std::string vS,std::string fS){
+        vertSource = vS;
+        fragSource = fS;
+
+
+        int currentOffset = 0;
+        int totalSize = 0;
+        std::regex inputStructRegex(R"(struct\s+main0_in\s*\{([^}]*)\};)");
+        std::regex inputRegex(R"(\s*(\w+\d*)\s+(\w+)\s*\[\[.*?\]\];)");
+        std::smatch inputStructMatch;
+        if (std::regex_search(vS, inputStructMatch, inputStructRegex)) {
+            std::string inputStructBody = inputStructMatch[1].str();
+            std::sregex_iterator begin(inputStructBody.begin(), inputStructBody.end(), inputRegex);
+            std::sregex_iterator end;
+            for (auto it = begin; it != end; ++it) {
+                std::string type = (*it)[1].str();
+                std::string name = (*it)[2].str();
+            }
+        }
+        std::regex structRegex(R"(struct\s+Uniforms\s*\{([^}]*)\};)");
+        std::regex uniformRegex(R"(\s*(\w+)\s+(\w+)(\[\d+\])?;)");
+        std::smatch structMatch;
+        if (std::regex_search(vS, structMatch, structRegex)) {
+            std::string structBody = structMatch[1].str();
+            std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
+            std::sregex_iterator end;
+            for (auto it = begin; it != end; ++it) {
+                std::string type = (*it)[1].str();
+                std::string name = (*it)[2].str();
+                std::string arraySize = (*it)[3].str();
+                int typeSize = 0;
+                if(type=="int")typeSize=sizeof(int);
+                else if(type=="float")typeSize=sizeof(float);
+                else if(type=="float2")typeSize=sizeof(float)*2;
+                else if(type=="float3")typeSize=sizeof(float)*3;
+                else if(type=="float4")typeSize=sizeof(float)*4;
+                else if(type=="mat4")typeSize=sizeof(float)*16;
+                else if(type=="double")typeSize=sizeof(double);
+                else if(type=="double2")typeSize=sizeof(double)*2;
+                else if(type=="double3")typeSize=sizeof(double)*3;
+                else if(type=="double4")typeSize=sizeof(double)*4;
+                int arrayCount = 1;
+                if (!arraySize.empty()) {
+                    std::regex arraySizeRegex(R"(\[(\d+)\])");
+                    std::smatch arraySizeMatch;
+                    if (std::regex_match(arraySize, arraySizeMatch, arraySizeRegex)) {
+                        arrayCount = std::stoi(arraySizeMatch[1].str());
+                    }
+                }
+                currentOffset += typeSize * arrayCount;
+                uniformMapVert[name] = currentOffset;
+                totalSize += typeSize * arrayCount;
+            }
+        }
+        vertBuffer = [device newBufferWithLength:totalSize options:MTLResourceStorageModeShared];
+        currentOffset = 0;
+        totalSize = 0;
+        if (std::regex_search(fS, structMatch, structRegex)) {
+            std::string structBody = structMatch[1].str();
+            std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
+            std::sregex_iterator end;
+            for (auto it = begin; it != end; ++it) {
+                std::string type = (*it)[1].str();
+                std::string name = (*it)[2].str();
+                std::string arraySize = (*it)[3].str();
+                int typeSize = 0;
+                if(type=="int")typeSize=sizeof(int)*4;
+                else if(type=="float")typeSize=sizeof(float);
+                else if(type=="float2")typeSize=sizeof(float)*4;
+                else if(type=="float3")typeSize=sizeof(float)*4;
+                else if(type=="float4")typeSize=sizeof(float)*4;
+                else if(type=="mat4")typeSize=sizeof(float)*16;
+                else if(type=="double")typeSize=sizeof(double);
+                else if(type=="double2")typeSize=sizeof(double)*4;
+                else if(type=="double3")typeSize=sizeof(double)*4;
+                else if(type=="double4")typeSize=sizeof(double)*4;
+                int arrayCount = 1;
+                if (!arraySize.empty()) {
+                    std::regex arraySizeRegex(R"(\[(\d+)\])");
+                    std::smatch arraySizeMatch;
+                    if (std::regex_match(arraySize, arraySizeMatch, arraySizeRegex)) {
+                        arrayCount = std::stoi(arraySizeMatch[1].str());
+                    }
+                }
+                uniformMapFrag[name] = currentOffset;
+                currentOffset += typeSize * arrayCount;
+                sizeMapFrag[name] = typeSize * arrayCount;
+                totalSize += typeSize * arrayCount;
+            }
+        }
+        fragBuffer = [device newBufferWithLength:totalSize options:MTLResourceStorageModeShared];
+        pipelineState = plState;
+    }
+    #endif
+
+    void* pipelineState;
+    void* fragBuffer;
+    void* vertBuffer;
+    std::string vertSource = "";
+    std::string fragSource = "";
+    std::unordered_map<std::string, int> uniformMapVert;
+    std::unordered_map<std::string, int> sizeMapVert;
+    std::unordered_map<std::string, int> uniformMapFrag;
+    std::unordered_map<std::string, int> sizeMapFrag;
 };
 
-class MetalBento {
+class Bento {
 public:
     void init(const char *title, int w, int h, int x = 0, int y = 0);
     void initSound();
@@ -255,12 +392,31 @@ public:
     bool getControllerButton(int controller, ButtonType button);
     bool isWindowFocused();
     glm::vec2 getDisplaySize();
-    void bindTexture(class Texture *tex);
+    void bindTexture(class Texture *tex,int index);
     void unbindTexture();
+    void setActiveTextures(int start, int end);
+    void setActiveTextures(int ind);
+    void setActiveDepthTexture(int ind);
+    void setActiveAttachments(int start, int end);
+    void setActiveAttachments(int ind);
     void predrawTex(int width,int height);
     void drawTex();
-    Texture* renderTex();
+    void renderTex();
+    void renderToTex(Texture*& tex1,int ind);
+    void renderDepthToTex(Texture*& tex,int ind);
+    void renderToTex(Texture*& tex1, Texture*& tex2,int ind);
+    void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
+    void setShader(Shader* shader);
+
+    void setUniform(std::string uniformName, glm::vec3 value);
+    void setUniform(std::string uniformName, float value);
+    void setUniform(std::string uniformName, int value);
+    void setUniform(std::string uniformName, glm::vec2 value);
+    void setUniform(std::string uniformName, glm::mat4 value);
+    
     void exit();
+
+    Shader* getDefaultShader();
 
     //imgui
 
@@ -287,6 +443,7 @@ public:
     std::string getFramework();
     std::string getOperatingSystem(){return "Macos";}
 
+    std::string getUni();
 private:
     void *rendererObjC;
 };
