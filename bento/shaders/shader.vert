@@ -9,8 +9,9 @@ layout(location = 2) in vec2 uv;
 layout(location = 0) out vec3 fragPos;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec2 fragUV;
-layout(location = 3) out vec3 viewPos;
-layout(location = 4) out vec3 pos;
+layout(location = 3) out vec4 fragUPos;
+layout(location = 4) out vec3 viewPos;
+layout(location = 5) out vec3 pos;
 
 layout(set = 0, binding = 3) uniform Uniforms {
     mat4 model;
@@ -22,6 +23,7 @@ layout(set = 0, binding = 3) uniform Uniforms {
 void main() {
     gl_Position = projection * view * model * vec4(position, 1.0);
     fragPos = vec3(model * vec4(position, 1.0));
+    fragUPos = projection * view * model * vec4(position, 1.0);
     fragNormal = normal;
     fragUV.x = uv.x;
     fragUV.y = uv.y;

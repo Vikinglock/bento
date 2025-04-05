@@ -121,19 +121,14 @@ MetalTexture::MetalTexture(const char* filepath) {
 
 MetalTexture::MetalTexture(id<MTLTexture> tex,id<MTLSamplerState> samp) {
     @autoreleasepool {
-        texture = tex;
-        sampler = samp;
+        texture = [tex retain];
+        sampler = [samp retain];
     }
 }
 
-
 MetalTexture::~MetalTexture() {
-    @autoreleasepool{
-        if (texture) {
-            CFBridgingRelease(texture);
-            texture = nullptr;
-        }
-    }
+    [texture release];
+    [sampler release];
 }
 
 void* MetalTexture::getTexture() {
