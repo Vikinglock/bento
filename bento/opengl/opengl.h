@@ -21,6 +21,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <regex>
+#include <unordered_map>
 
 #include "../lib/AL/al.h"
 #include "../lib/AL/alc.h"
@@ -157,6 +158,7 @@ private:
 
 class Texture : public OpenGLTexture {
 public:
+    Texture() : OpenGLTexture() {}
     Texture(const char* filepath) : OpenGLTexture(filepath) {}
     Texture(unsigned int filepath) : OpenGLTexture(filepath) {}
 };
@@ -176,8 +178,9 @@ public:
     }
 
     std::string getUni();
-    
+
     GLuint program;
+    std::unordered_map<int,GLint> textureLocs;
     std::string vertSource = "";
     std::string fragSource = "";
 };
@@ -232,21 +235,29 @@ public:
     void renderToTex(Texture*& tex1, Texture*& tex2,int ind);
     void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
     void setShader(Shader* shader);
-    void setUniform(std::string uniformName, float value, bool onVertex = false){
-        glUniform1f(glGetUniformLocation(shader->program, uniformName.c_str()),value);
-    }
-    void setUniform(std::string uniformName, int value, bool onVertex = false){
-        glUniform1i(glGetUniformLocation(shader->program, uniformName.c_str()),value);
-    }
-    void setUniform(std::string uniformName, glm::vec2 value, bool onVertex = false){
-        glUniform2fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);
-    }
-    void setUniform(std::string uniformName, glm::vec3 value, bool onVertex = false){
-        glUniform3fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);
-    }
-    void setUniform(std::string uniformName, glm::mat4 value, bool onVertex = false){
-        glUniformMatrix4fv(glGetUniformLocation(shader->program, uniformName.c_str()), 1, GL_FALSE, &value[0][0]);
-    }
+
+    void normalizeTexture(int index, bool normalized);
+
+    void setUniform(std::string uniformName, float value, bool onVertex = false){glUniform1f(glGetUniformLocation(shader->program, uniformName.c_str()),value);}
+    void setUniform(std::string uniformName, int value, bool onVertex = false){glUniform1i(glGetUniformLocation(shader->program, uniformName.c_str()),value);}
+    void setUniform(std::string uniformName, glm::vec2 value, bool onVertex = false){glUniform2fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);}
+    void setUniform(std::string uniformName, glm::vec3 value, bool onVertex = false){glUniform3fv(glGetUniformLocation(shader->program, uniformName.c_str()),1,&value[0]);}
+    void setUniform(std::string uniformName, glm::mat4 value, bool onVertex = false){glUniformMatrix4fv(glGetUniformLocation(shader->program, uniformName.c_str()), 1, GL_FALSE, &value[0][0]);}
+    void setUniform(std::string uniformName, glm::vec4 value, bool onVertex = false) {glUniform4fv(glGetUniformLocation(shader->program, uniformName.c_str()), 1, &value[0]);}
+
+    void setUniform(std::string uniformName, float* values, int count, bool onVertex = false) {glUniform1fv(glGetUniformLocation(shader->program, uniformName.c_str()), count, values);}
+    void setUniform(std::string uniformName, int* values, int count, bool onVertex = false) {glUniform1iv(glGetUniformLocation(shader->program, uniformName.c_str()), count, values);}
+    void setUniform(std::string uniformName, glm::vec2* values, int count, bool onVertex = false) {glUniform2fv(glGetUniformLocation(shader->program, uniformName.c_str()), count, glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, glm::vec3* values, int count, bool onVertex = false) {glUniform3fv(glGetUniformLocation(shader->program, uniformName.c_str()), count, glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, glm::vec4* values, int count, bool onVertex = false) {glUniform4fv(glGetUniformLocation(shader->program, uniformName.c_str()), count, glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, glm::mat4* values, int count, bool onVertex = false) {glUniformMatrix4fv(glGetUniformLocation(shader->program, uniformName.c_str()), count, GL_FALSE, glm::value_ptr(values[0][0]));}
+    // Vector implementations
+    void setUniform(std::string uniformName, const std::vector<float>& values, bool onVertex = false) {glUniform1fv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), values.data());}
+    void setUniform(std::string uniformName, const std::vector<int>& values, bool onVertex = false) {glUniform1iv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), values.data());}
+    void setUniform(std::string uniformName, const std::vector<glm::vec2>& values, bool onVertex = false) {glUniform2fv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, const std::vector<glm::vec3>& values, bool onVertex = false) {glUniform3fv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, const std::vector<glm::vec4>& values, bool onVertex = false) {glUniform4fv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), glm::value_ptr(values[0]));}
+    void setUniform(std::string uniformName, const std::vector<glm::mat4>& values, bool onVertex = false) {glUniformMatrix4fv(glGetUniformLocation(shader->program, uniformName.c_str()), values.size(), GL_FALSE, glm::value_ptr(values[0][0]));}
 
     void exit();
 
@@ -286,6 +297,7 @@ public:
     }
 
     std::string getUni();
+    Shader* shader;//no, no it is not.
 
 private:
     int numLights;
@@ -309,7 +321,6 @@ private:
 
     GLFWwindow* window;
 
-    Shader* shader;//no, no it is not.
     Shader* defaultShader;
 
     GLuint modelLoc;

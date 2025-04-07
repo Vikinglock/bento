@@ -10,8 +10,9 @@
 
 #include <string>
 
-class MetalTexture {//it worked like this; never touch again
+class MetalTexture {//i touched (:
 public:
+    MetalTexture();
     MetalTexture(const char* filepath);
 #ifdef __OBJC__
     MetalTexture(id<MTLTexture> tex,id<MTLSamplerState> sampler);
@@ -21,7 +22,6 @@ public:
     
 #ifdef __OBJC__
     id<MTLSamplerState> getSampler();
-private:
     id<MTLTexture> texture;
     id<MTLSamplerState> sampler;
 #endif

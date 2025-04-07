@@ -65,6 +65,8 @@ std::vector<ALuint> sounds;
 std::vector<ALuint> buffers;
 bool useDefShader = true;
 
+std::vector<bool> normalizedTextures;
+
 enum {
     KeyStateNone,
     KeyStatePressed,
@@ -120,12 +122,41 @@ void Bento::init(const char *title, int width, int height, int x, int y){
         return;
     }
 
+    system("glslangValidator -V --quiet ./bento/shaders/shader.vert -o vert.spv");
+    system("glslangValidator -V --quiet ./bento/shaders/shader.frag -o frag.spv");
+    system("spirv-cross vert.spv --version 330 --output ./bento/shaders/shader.vs");
+    system("spirv-cross frag.spv --version 330 --output ./bento/shaders/shader.fs");
+    system("./bento/shaders/330c ./bento/shaders/shader.vs ./bento/shaders/shader.fs");
+    system("rm vert.spv frag.spv");
 
     vertShaderSource = loadShaderSource("./bento/shaders/shader.vs");
     fragShaderSource = loadShaderSource("./bento/shaders/shader.fs");
 
+    size_t pos = vertShaderSource.rfind("gl_Position");
+    if (pos != std::string::npos) {
+        size_t endPos = vertShaderSource.find(";", pos);
+        if (endPos != std::string::npos) {
+            vertShaderSource.insert(endPos + 1, "\ngl_Position.y = -gl_Position.y;");
+        }
+    }
+    
+
     GLuint shd = createShaderProgram(vertShaderSource,fragShaderSource);
     defaultShader = new Shader(shd,vertShaderSource,fragShaderSource);
+
+    std::smatch match;
+    auto begin = fragShaderSource.cbegin();
+    auto end = fragShaderSource.cend();
+    std::regex textureFindThingRegex(R"((sampler\w+)\s+(\w+);)");
+    int index = 0;
+    while (std::regex_search(begin, end, match,textureFindThingRegex)) {
+        std::string type = match[1].str();
+        std::string name = match[2].str();
+        defaultShader->textureLocs[index] = glGetUniformLocation(defaultShader->program, name.c_str());
+        index++;
+        begin = match.suffix().first;
+    }
+
     shader = defaultShader;
 
     dTInd = 0;
@@ -237,6 +268,7 @@ void Bento::setUvs(class uvBuffer us) {
 }
 
 void Bento::bindTexture(Texture *texture, int ind) {
+    glUniform1i(shader->textureLocs[ind], ind);
     glActiveTexture(GL_TEXTURE0+ind);
     glBindTexture(GL_TEXTURE_2D, texture->getTexture());
 }
@@ -267,20 +299,6 @@ void Bento::draw() {
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glUniform3f(positionLoc,pos.x,pos.y,pos.z);
-
-        glUniform1i(numLightsLoc,numLights);
-
-        glUniform3fv(positionsLoc, MAX_LIGHTS, glm::value_ptr(positions[0]));
-        glUniform1fv(constantsLoc, MAX_LIGHTS, constants);
-        glUniform1fv(linearsLoc, MAX_LIGHTS, linears);
-        glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
-        glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
-        glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
-        glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
-
-        glUniform3f(ambientLoc,amb.x,amb.y,amb.z);
     }
     
     glBindVertexArray(vao);
@@ -295,10 +313,16 @@ void Bento::render() {
 void Bento::setActiveTextures(int start, int end){
     startRT = start;
     endRT = end+1;
+    for(int i = texture.size(); i < end; i++){
+        normalizedTextures.push_back(true);
+    }
 }
 void Bento::setActiveTextures(int ind){
     startRT = ind;
     endRT = ind+1;
+    for(int i = texture.size(); i < ind; i++){
+        normalizedTextures.push_back(true);
+    }
 }
 
 void Bento::setActiveDepthTexture(int ind){
@@ -336,7 +360,11 @@ void Bento::predrawTex(int width, int height) {
             glGenTextures(1, &texture[startRT+i]);
         }
         glBindTexture(GL_TEXTURE_2D, texture[startRT+i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        if(normalizedTextures[i]){
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        }else{
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
+        }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -376,19 +404,6 @@ void Bento::drawTex() {
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glUniform3f(positionLoc,pos.x,pos.y,pos.z);
-
-        glUniform1i(numLightsLoc,numLights);
-
-        glUniform3fv(positionsLoc, MAX_LIGHTS, glm::value_ptr(positions[0]));
-        glUniform1fv(constantsLoc, MAX_LIGHTS, constants);
-        glUniform1fv(linearsLoc, MAX_LIGHTS, linears);
-        glUniform1fv(quadsLoc, MAX_LIGHTS, quads);
-        glUniform3fv(ambientsLoc, MAX_LIGHTS, glm::value_ptr(ambients[0]));
-        glUniform3fv(diffusesLoc, MAX_LIGHTS, glm::value_ptr(diffuses[0]));
-        
-        glUniform3fv(specularsLoc, MAX_LIGHTS, glm::value_ptr(speculars[0]));
     }
     GLuint attachments[(endAtt-startAtt) + 1];
     attachments[0] = GL_COLOR_ATTACHMENT0;
@@ -425,6 +440,9 @@ void Bento::renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind){
     tex1 = new Texture(texture[ind]);
     tex2 = new Texture(texture[ind+1]);
     tex3 = new Texture(texture[ind+2]);
+}
+void Bento::normalizeTexture(int index,bool normalized){
+    normalizedTextures[index] = normalized;
 }
 
 void Bento::setModelMatrix(const glm::mat4& m) {model = m;}
@@ -693,24 +711,34 @@ Shader::Shader(std::string vertPath, std::string fragPath){
     }
     system(("glslangValidator -V --quiet " + vertPath + " -o "+vertDir+vertFilename+".vert.spv").c_str());
     system(("glslangValidator -V --quiet " + fragPath + " -o "+fragDir+fragFilename+".frag.spv").c_str());
-    system(("spirv-cross "+vertDir+vertFilename+".vert.spv --version 330 --output " +vertDir+vertFilename + ".vs").c_str());
-    system(("spirv-cross "+fragDir+fragFilename+".frag.spv --version 330 --output " +fragDir+fragFilename + ".fs").c_str());
-    system(("./bento/shaders/330c "+vertDir+vertFilename+".vs "+fragDir+fragFilename+".fs").c_str());
+    system(("spirv-cross "+vertDir+vertFilename+".vert.spv --version 330 --output " +vertDir+"/cache"+vertFilename + ".vs").c_str());
+    system(("spirv-cross "+fragDir+fragFilename+".frag.spv --version 330 --output " +fragDir+"/cache"+fragFilename + ".fs").c_str());
+    system(("./bento/shaders/330c "+vertDir+"/cache"+vertFilename+".vs "+fragDir+"/cache"+fragFilename+".fs").c_str());
     system(("rm "+vertDir+vertFilename+".vert.spv "+fragDir+fragFilename+".frag.spv").c_str());
-    std::cout << " to "+vertDir+vertFilename+" and "+fragDir+fragFilename+"\n";
+    std::cout << " to "+vertDir+"/cache"+vertFilename+".vs and "+fragDir+"/cache"+fragFilename+".fs\n";
     
-    vertSource = loadShaderSource(vertDir+vertFilename+".vs");
-    fragSource = loadShaderSource(fragDir+fragFilename+".fs");
+    vertSource = loadShaderSource(vertDir+"/cache"+vertFilename+".vs");
+    fragSource = loadShaderSource(fragDir+"/cache"+fragFilename+".fs");
 
-    std::cout<<fragPath+fragFilename+".vs "<<loadShaderSource(fragPath+fragFilename+".vs")<<std::endl;
-
-    size_t pos = vertSource.rfind("gl_Position =");
+    size_t pos = vertSource.rfind("gl_Position");
     if (pos != std::string::npos) {
         size_t endPos = vertSource.find(";", pos);
         if (endPos != std::string::npos) {
-            vertSource.insert(endPos + 1, "\n    gl_Position.y = -gl_Position.y;");
+            vertSource.insert(endPos + 1, "\ngl_Position.y = -gl_Position.y;");
         }
     }
-
     program = createShaderProgram(vertSource,fragSource);
+
+    std::smatch match;
+    auto begin = fragSource.cbegin();
+    auto end = fragSource.cend();
+    std::regex textureFindThingRegex(R"((sampler\w+)\s+(\w+);)");
+    int index = 0;
+    while (std::regex_search(begin, end, match,textureFindThingRegex)) {
+        std::string type = match[1].str();
+        std::string name = match[2].str();
+        textureLocs[index] = glGetUniformLocation(program, name.c_str());
+        index++;
+        begin = match.suffix().first;
+    }
 }

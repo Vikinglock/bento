@@ -34,38 +34,14 @@ int max(int a,int b){return a>b?a:b;}
 struct Light
 {
     Light(std::string n,int i,glm::vec3 p,glm::vec3 a=glm::vec3(1.0f), glm::vec3 d=glm::vec3(1.0f), glm::vec3 s=glm::vec3(1.0f), float c =1.f,float l=0.09f,float q=0.032f):name(n),position(p),ambient(a),diffuse(d),specular(s),constant(c),linear(l),quadratic(q),index(i){}
-    void add(Bento* bento){
-        bento->addLight(position,ambient,diffuse,specular,constant,linear,quadratic);
-    }
-    void updatePosition(Bento* bento){
-        bento->setLightPos(index,position);
-    }
-    void updateAmbient(Bento* bento){
-        bento->setLightAmbients(index,ambient);
-    }
-    void updateDiffuse(Bento* bento){
-        bento->setLightDiffuses(index,diffuse);
-    }
-    void updateSpecular(Bento* bento){
-        bento->setLightSpeculars(index,specular);
-    }
-    void updateConstant(Bento* bento){
-        bento->setLightConstants(index,constant);
-    }
-    void updateLinear(Bento* bento){
-        bento->setLightLinears(index,linear);
-    }
-    void updateQuadratic(Bento* bento){
-        bento->setLightQuads(index,quadratic);
-    }
-    void updateAll(Bento* bento){
-        bento->setLightPos(index,position);
-        bento->setLightAmbients(index,ambient);
-        bento->setLightDiffuses(index,diffuse);
-        bento->setLightSpeculars(index,specular);
-        bento->setLightConstants(index,constant);
-        bento->setLightLinears(index,linear);
-        bento->setLightQuads(index,quadratic);
+    void update(Bento* bento){
+        bento->setUniform("positions",position,index*sizeof(glm::vec3));
+        bento->setUniform("constants",constant,index*sizeof(float));
+        bento->setUniform("linears",linear,index*sizeof(float));
+        bento->setUniform("quadratics",quadratic,index*sizeof(float));
+        bento->setUniform("ambients",ambient,index*sizeof(glm::vec3));
+        bento->setUniform("diffuses",diffuse,index*sizeof(glm::vec3));
+        bento->setUniform("speculars",specular,index*sizeof(glm::vec3));
     }
     std::string name;
     int index;
@@ -78,6 +54,17 @@ struct Light
     float quadratic;
 };
 
+void updateLights(std::vector<Light> lights,Bento* bento,float tPDist);
+
+glm::vec3 positions[50];
+float constants[50];
+float linears[50];
+float quadratics[50];
+glm::vec3 ambients[50];
+glm::vec3 diffuses[50];
+glm::vec3 speculars[50];
+glm::vec3 ambientColor;
+
 int main() {
     Bento* bento = new Bento();
     bento->init("ベント",1000,1000);
@@ -85,6 +72,10 @@ int main() {
     Shader* defaultShader = bento->getDefaultShader();
     
     Shader* screenShader = new Shader("./resources/shaders/screen.vert","./resources/shaders/screen.frag");
+    Shader* thresholdShader = new Shader("./resources/shaders/threshold.vert","./resources/shaders/threshold.frag");
+    Shader* boxBlurShader = new Shader("./resources/shaders/blur.vert","./resources/shaders/blur.frag");
+    Shader* combineShader = new Shader("./resources/shaders/combine.vert","./resources/shaders/combine.frag");
+    
 
 
     bento->setClearColor(glm::vec4(0,0,0,1));
@@ -99,10 +90,26 @@ int main() {
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
 
-    Texture* scrnTex = new Texture("./resources/grass.png");
+    std::vector<glm::vec3> screenVertices;
+    screenVertices.push_back(glm::vec3(1,1,0));
+    screenVertices.push_back(glm::vec3(-1,-1,0));
+    screenVertices.push_back(glm::vec3(1,-1,0));
+    screenVertices.push_back(glm::vec3(1,1,0));
+    screenVertices.push_back(glm::vec3(-1,1,0));
+    screenVertices.push_back(glm::vec3(-1,-1,0));
+
+    std::vector<glm::vec2> screenUVs;
+    screenUVs.push_back(glm::vec2(1,1));
+    screenUVs.push_back(glm::vec2(0,0));
+    screenUVs.push_back(glm::vec2(1,0));
+    screenUVs.push_back(glm::vec2(1,1));
+    screenUVs.push_back(glm::vec2(0,1));
+    screenUVs.push_back(glm::vec2(0,0));
+
+    Texture* scrnTex;
+    Texture* blurTex;
     Texture* colTex;
     Texture* nrmlTex;
-    Texture* uvTex;
     Texture* depthTex;
     Texture* posTex;
 
@@ -115,17 +122,13 @@ int main() {
     lights.emplace_back("light2",lights.size(),glm::vec3(10,3,1),glm::vec3(10,10,10),glm::vec3(1,1,1),glm::vec3(1,1,1),1.0,0.9,0.2);
     lights.emplace_back("light3",lights.size(),glm::vec3(1,1,10),glm::vec3(1,1,1),glm::vec3(1,0,0),glm::vec3(1,0.6,0.6),0.1,0.8,0.01);
 
-
-    for(Light light: lights){
-        light.add(bento);
-    }
-
     std::vector<Object*> objects;
 
 
+    objects.emplace_back(new Object("shphere",glm::mat4(1.0),"resources/hmm.obj","resources/hmm.png"));
     for(int i = -25; i < 25; i+=2)
         for(int j = 0; j < 25; j+=2)
-            objects.emplace_back(new Object("sword",glm::vec3(i,j,-10),"resources/sword.obj"));
+            objects.emplace_back(new Object("sword",glm::translate(glm::mat4(1.0),glm::vec3(i,j,-10)),"resources/sword.obj"));
 
     Texture *swordTex = new Texture("./resources/sword.png");//or you can do "resources/sword.png"
 
@@ -139,8 +142,7 @@ int main() {
     for(glm::vec3 v:vs)vo.push_back(v.x);
 
 
-    objects.emplace_back(new Object("shphere",glm::vec3(0,10,0),"resources/hmm.obj","resources/hmm.png"));
-    
+
     float angleX = 3.14, angleY = 0;
     float fov = 110.0f, tPDist = 10.0f, tPDistSensitivity = 0.75f;
     int pov = 0;
@@ -172,11 +174,23 @@ int main() {
         bento->setActiveTextures(0,3);
         bento->setActiveDepthTexture(0);
         bento->setActiveAttachments(0,3);
+        bento->normalizeTexture(2,false);
         bento->predrawTex(viewSize.x,viewSize.y);
 
         bento->setShader(defaultShader);
-        static float tspecular = 10.0f;
-        bento->setUniform("tspecular",tspecular);
+        bento->setUniform("tspecular",10.0f);
+
+        {
+            glm::vec3 forward = glm::normalize(position-glm::vec3(0,10,0));
+            glm::vec3 right   = glm::normalize(glm::cross(glm::vec3(0,1,0), forward));
+            glm::vec3 actualUp = glm::cross(forward, right);
+            glm::mat4 rotation = glm::mat4(1.0f);
+            rotation[0] = glm::vec4(right, 0.0f);
+            rotation[1] = glm::vec4(actualUp, 0.0f);
+            rotation[2] = glm::vec4(forward, 0.0f);
+            glm::mat4 translation = glm::translate(glm::mat4(1.0f),glm::vec3(0,10,0));
+            objects[0]->transformation = translation * rotation * glm::rotate(glm::mat4(1.0f),-glm::half_pi<float>(),glm::vec3(0,1,0));
+        }
 
 
         bento->bindTexture(swordTex,0);
@@ -204,64 +218,87 @@ int main() {
 
         bento->renderToTex(colTex,0);
         bento->renderToTex(nrmlTex,1);
-        bento->renderToTex(uvTex,2);
-        bento->renderToTex(posTex,3);
+        bento->renderToTex(posTex,2);
 
         bento->renderDepthToTex(depthTex,0);
-        static int kernelSize = 16;
-        static float radius = 0.5;
-        static float bias = 0.025;
-        static float intensity = 2.0;
-        static float THRESHOLD = 0.1;
-        static float KNEE = 0.7;
-
-
-        bento->setActiveTextures(4);
+        bento->setActiveTextures(3);
         bento->setActiveDepthTexture(1);
         bento->setActiveAttachments(0);
         bento->predrawTex(viewSize.x,viewSize.y);
-
         bento->setShader(screenShader);
-        bento->setUniform("kernelSize",kernelSize);
-        bento->setUniform("radius",radius);
-        bento->setUniform("bias",bias);
-        bento->setUniform("intensity",intensity);
-        bento->setUniform("projection",projection);
-        bento->setUniform("THRESHOLD",THRESHOLD);
-        bento->setUniform("KNEE",KNEE);
-        
+
+        lights[0].position = position;
+        updateLights(lights,bento,tPDist);//toilet paper distance
+        bento->setUniform("numLights",(int)lights.size());
+        bento->setUniform("ambientColor",glm::vec3(0,0,0));
+        static float tspecular = 10.0f;
+        bento->setUniform("tspecular",tspecular);
+        bento->setUniform("ambientColor",ambientColor);
         bento->bindTexture(colTex,0);
         bento->bindTexture(nrmlTex,1);
-        bento->bindTexture(uvTex,2);
-        bento->bindTexture(depthTex,3);
-        bento->bindTexture(posTex,4);
-
-
-        std::vector<glm::vec3> screenVertices;
-        screenVertices.push_back(glm::vec3(1,1,0));
-        screenVertices.push_back(glm::vec3(-1,-1,0));
-        screenVertices.push_back(glm::vec3(1,-1,0));
-        screenVertices.push_back(glm::vec3(1,1,0));
-        screenVertices.push_back(glm::vec3(-1,1,0));
-        screenVertices.push_back(glm::vec3(-1,-1,0));
- 
-        std::vector<glm::vec2> screenUVs;
-        screenUVs.push_back(glm::vec2(1,1));
-        screenUVs.push_back(glm::vec2(0,0));
-        screenUVs.push_back(glm::vec2(1,0));
-        screenUVs.push_back(glm::vec2(1,1));
-        screenUVs.push_back(glm::vec2(0,1));
-        screenUVs.push_back(glm::vec2(0,0));
+        bento->bindTexture(depthTex,2);
+        bento->bindTexture(posTex,3);
         bento->setVerticesDirect(screenVertices);
         bento->setNormalsDirect(screenVertices);
         bento->setUvsDirect(screenUVs);
-
         bento->drawTex();
-
         bento->renderTex();
+        bento->renderToTex(scrnTex,3);
+        
+        bento->setActiveTextures(4);
+        bento->setActiveDepthTexture(2);
+        bento->setActiveAttachments(0);
+        bento->predrawTex(viewSize.x,viewSize.y);
+        bento->setShader(thresholdShader);
+        static float threshold = 0.0;
+        bento->setUniform("threshold",threshold);
+        
+        bento->bindTexture(scrnTex,0);
+        bento->setVerticesDirect(screenVertices);
+        bento->setNormalsDirect(screenVertices);
+        bento->setUvsDirect(screenUVs);
+        bento->drawTex();
+        bento->renderTex();
+        bento->renderToTex(blurTex,4);
+        static int quality = 16;
+        static int directions = 18;
+        static float blurAmount = 15.0f;
+        bento->setActiveTextures(5);
+        bento->setActiveDepthTexture(3);
+        bento->setActiveAttachments(0);
+        bento->predrawTex(viewSize.x,viewSize.y);
+        bento->setShader(boxBlurShader);
 
-        bento->renderToTex(scrnTex,4);
-        bento->renderDepthToTex(depthTex,0);
+        bento->setUniform("blurAmount",glm::vec2(blurAmount)/glm::vec2(viewSize.x,viewSize.y));
+        bento->setUniform("directions",directions);
+        bento->setUniform("quality",quality);
+
+        bento->bindTexture(blurTex,0);
+        bento->setVerticesDirect(screenVertices);
+        bento->setNormalsDirect(screenVertices);
+        bento->setUvsDirect(screenUVs);
+        bento->drawTex();
+        bento->renderTex();
+        bento->renderToTex(blurTex,5);
+
+        static float exposure = 0.4f;
+        static float strength = 1.2f;
+        bento->setActiveTextures(6);
+        bento->setActiveDepthTexture(4);
+        bento->setActiveAttachments(0);
+        bento->predrawTex(viewSize.x,viewSize.y);
+        bento->setShader(combineShader);
+        bento->setUniform("exposure",exposure);
+        bento->setUniform("strength",strength);
+        bento->bindTexture(scrnTex,0);
+        bento->bindTexture(blurTex,1);
+        bento->setVerticesDirect(screenVertices);
+        bento->setNormalsDirect(screenVertices);
+        bento->setUvsDirect(screenUVs);
+        bento->drawTex();
+        bento->renderTex();
+        bento->renderToTex(scrnTex,6);
+
 
         bento->predraw();
         bento->setShader(defaultShader);
@@ -340,7 +377,7 @@ int main() {
         ImGui::Image((ImTextureID)nrmlTex->getTexture(), imageSize);
         ImGui::SetCursorPosY(imageSize.y+15);
         ImGui::SetCursorPosX(0);
-        ImGui::Image((ImTextureID)uvTex->getTexture(), imageSize);
+        ImGui::Image((ImTextureID)posTex->getTexture(), imageSize);
         ImGui::SameLine();
         ImGui::SetCursorPosX(imageSize.x);
         ImGui::Image((ImTextureID)depthTex->getTexture(), imageSize);
@@ -371,18 +408,20 @@ int main() {
         
         if (ImGui::InputText("##cmd", commandBuffer, sizeof(commandBuffer), ImGuiInputTextFlags_EnterReturnsTrue)) {
 
-            scrollToBottom = true;
-            ImGui::SetKeyboardFocusHere(-1);
+            #ifdef MACOS
+                scrollToBottom = true;
+                ImGui::SetKeyboardFocusHere(-1);
 
-            outputBuffer += "> " + std::string(commandBuffer) + "\n";
+                outputBuffer += "> " + std::string(commandBuffer) + "\n";
 
-            FILE* pipe = popen(commandBuffer, "r");
-            char buffer[128];
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                outputBuffer += buffer;
-            }
-            pclose(pipe);
-            memset(commandBuffer, 0, sizeof(commandBuffer));
+                FILE* pipe = popen(commandBuffer, "r");
+                char buffer[128];
+                while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                    outputBuffer += buffer;
+                }
+                pclose(pipe);
+                memset(commandBuffer, 0, sizeof(commandBuffer));
+            #endif
         }
 
         ImGui::End();
@@ -420,14 +459,6 @@ int main() {
         static bool invShiftMoveY = false;
         static float shiftMoveSensY = 0.002f;
         static float shiftMoveProp = 0.75f;
-
-        ImGui::DragInt("kernel size", &kernelSize);
-        ImGui::DragFloat("radius", &radius, 0.1f);
-        ImGui::DragFloat("bias", &bias, 0.1f);
-        ImGui::DragFloat("intensity", &intensity, 0.1f);
-
-        ImGui::DragFloat("THRESHOLD", &THRESHOLD);
-        ImGui::DragFloat("KNEE", &KNEE, 0.1f);
         
         if (ImGui::CollapsingHeader("movement settings")) {
 
@@ -505,19 +536,20 @@ int main() {
         }
         if (ImGui::CollapsingHeader("world settings")) {
             static float clearColor[4] = {0.0f,0.0f,0.0f,1.0f};
-            static float ambientColor[3] = {0.0f,0.0f,0.0f};
+            static float ambColor[4] = {0.0f,0.0f,0.0f};
             ImGui::ColorPicker4("sky color", (float*)&clearColor);
             bento->setClearColor(glm::vec4(clearColor[0],clearColor[1],clearColor[2],clearColor[3]));
             static bool amCisSkC = true;
             ImGui::Checkbox("ambient color = sky color?", &amCisSkC);
             if(amCisSkC){
-                bento->setAmbientColor(glm::vec3(clearColor[0],clearColor[1],clearColor[2]));
-                ambientColor[0] = clearColor[0];
-                ambientColor[1] = clearColor[1];
-                ambientColor[2] = clearColor[2];
+                ambientColor.x = clearColor[0];
+                ambientColor.y = clearColor[1];
+                ambientColor.z = clearColor[2];
             }else{
-                ImGui::ColorPicker3("ambient color", (float*)&ambientColor);
-                bento->setAmbientColor(glm::vec3(ambientColor[0],ambientColor[1],ambientColor[2]));
+                ImGui::ColorPicker3("ambient color", (float*)&ambColor);
+                ambientColor.x = ambColor[0];
+                ambientColor.y = ambColor[1];
+                ambientColor.z = ambColor[2];
             }
         }
         static bool showDemo = false;
@@ -526,6 +558,15 @@ int main() {
         
         if (ImGui::CollapsingHeader("shader settings")) {
             ImGui::DragFloat("specular amount", &tspecular, 0.1f);
+
+            ImGui::DragFloat("threshold", &threshold, 0.1f);
+
+            ImGui::DragInt("quality", &quality);
+            ImGui::DragInt("directions", &directions);
+            ImGui::DragFloat("blur amount", &blurAmount, 0.1f);
+
+            ImGui::DragFloat("exposure", &exposure, 0.1f);
+            ImGui::DragFloat("strength", &strength, 0.1f);
         }
 
         ImGui::End();
@@ -564,13 +605,13 @@ int main() {
             ImGui::BeginDisabled();
             ImGui::InputInt("index",&light.index);
             ImGui::EndDisabled();
-            if(ImGui::DragFloat3("position", glm::value_ptr(light.position)))light.updatePosition(bento);
-            if(ImGui::ColorEdit3("ambient", glm::value_ptr(light.ambient)))light.updateAmbient(bento);
-            if(ImGui::ColorEdit3("diffuse", glm::value_ptr(light.diffuse)))light.updateDiffuse(bento);
-            if(ImGui::ColorEdit3("specular", glm::value_ptr(light.specular)))light.updateSpecular(bento);
-            if(ImGui::DragFloat("constant",&light.constant,0.01f))light.updateConstant(bento);
-            if(ImGui::DragFloat("linear",&light.linear,0.01f))light.updateLinear(bento);
-            if(ImGui::DragFloat("quadratic",&light.quadratic,0.001f))light.updateQuadratic(bento);
+            ImGui::DragFloat3("position", glm::value_ptr(light.position));
+            ImGui::ColorEdit3("ambient", glm::value_ptr(light.ambient));
+            ImGui::ColorEdit3("diffuse", glm::value_ptr(light.diffuse));
+            ImGui::ColorEdit3("specular", glm::value_ptr(light.specular));
+            ImGui::DragFloat("constant",&light.constant,0.01f);
+            ImGui::DragFloat("linear",&light.linear,0.01f);
+            ImGui::DragFloat("quadratic",&light.quadratic,0.001f);
         }
         if(viewportFocus){
             static float moveSpeed;
@@ -593,9 +634,6 @@ int main() {
                     if(bento->getKey(KEY_Q))position.y -= moveSpeed;
                 }
             }
-
-            lights[0].position = position;
-            lights[0].updatePosition(bento);
 
             if(ijklAsLookKeys){
                 if(bento->getKey(KEY_L))angleX -= 0.1;
@@ -685,4 +723,24 @@ int main() {
     bento->exit();
     delete bento;
     return 0;
+}
+
+void updateLights(std::vector<Light> lights,Bento* bento,float tPDist){
+    for (int i = 0; i < (int)lights.size(); ++i) {
+        positions[i] = lights[i].position;
+        constants[i] = lights[i].constant;
+        linears[i] = lights[i].linear;
+        quadratics[i] = lights[i].quadratic;
+        ambients[i] = lights[i].ambient;
+        diffuses[i] = lights[i].diffuse;
+        speculars[i] = lights[i].specular;
+    }
+    bento->setUniform("positions",positions,50);
+    bento->setUniform("constants",constants,50);
+    bento->setUniform("linears",linears,50);
+    bento->setUniform("quadratics",quadratics,50);
+    bento->setUniform("ambients",ambients,50);
+    bento->setUniform("diffuses",diffuses,50);
+    bento->setUniform("speculars",speculars,50);
+    bento->setUniform("pos",position-direction*tPDist);
 }

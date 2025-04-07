@@ -213,6 +213,7 @@ private:
 
 class Texture : public MetalTexture {
 public:
+    Texture() : MetalTexture() {}
     Texture(const char* filepath) : MetalTexture(filepath) {}
 
     #ifdef __OBJC__
@@ -408,11 +409,26 @@ public:
     void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
     void setShader(Shader* shader);
 
-    void setUniform(std::string uniformName, glm::vec3 value);
-    void setUniform(std::string uniformName, float value);
-    void setUniform(std::string uniformName, int value);
-    void setUniform(std::string uniformName, glm::vec2 value);
-    void setUniform(std::string uniformName, glm::mat4 value);
+    void normalizeTexture(int index, bool normalized);
+
+    void setUniform(std::string uniformName, glm::vec4 value, bool onvertex = false);
+    void setUniform(std::string uniformName, glm::vec3 value, bool onvertex = false);
+    void setUniform(std::string uniformName, float value, bool onvertex = false);
+    void setUniform(std::string uniformName, int value, bool onvertex = false);
+    void setUniform(std::string uniformName, glm::vec2 value, bool onvertex = false);
+    void setUniform(std::string uniformName, glm::mat4 value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<glm::vec4>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<glm::vec3>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<float>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<int>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<glm::vec2>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, std::vector<glm::mat4>& value, bool onvertex = false);
+    void setUniform(std::string uniformName, float* values, int count, bool onVertex = false);
+    void setUniform(std::string uniformName, int* values, int count, bool onVertex = false);
+    void setUniform(std::string uniformName, glm::vec2* values, int count, bool onVertex = false);
+    void setUniform(std::string uniformName, glm::vec3* values, int count, bool onVertex = false);
+    void setUniform(std::string uniformName, glm::vec4* values, int count, bool onVertex = false);
+    void setUniform(std::string uniformName, glm::mat4* values, int count, bool onVertex = false);
     
     void exit();
 
@@ -426,17 +442,6 @@ public:
     void imguiRender();
 
     //lights
-
-    void addLight(const glm::vec3 position,const glm::vec3 ambient = glm::vec3(1.0f),const glm::vec3 diffuse = glm::vec3(1.0f),const glm::vec3 specular = glm::vec3(1.0f),float constant = 1.0f,float linear = 0.09f,float quadratic = 0.032f);
-    void setLightPos(int index, glm::vec3 position);
-    void setLightConstants(int index, float constant);
-    void setLightLinears(int index, float linear);
-    void setLightQuads(int index, float quad);
-    void setLightAmbients(int index, glm::vec3 ambient);
-    void setLightDiffuses(int index, glm::vec3 diffuse);
-    void setLightSpeculars(int index, glm::vec3 specular);
-
-    void setAmbientColor(glm::vec3 ambient);
 
     //debug
 

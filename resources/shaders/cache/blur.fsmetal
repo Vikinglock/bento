@@ -1,0 +1,78 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Uniforms
+{
+    int quality;
+    int directions;
+    float2 blurAmount;
+};
+
+struct main0_out
+{
+    float depth [[color(0)]];
+    float4 fragColor [[color(1)]];
+};
+
+struct main0_in
+{
+    float2 fUv [[user(locn0)]];
+};
+
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _37 [[buffer(0)]], texture2d<float> diftex [[texture(0)]], sampler diftexSmplr [[sampler(0)]])
+{
+    main0_out out = {};
+    float2 uv = float2(in.fUv.x, 1.0 - in.fUv.y);
+    float4 color = diftex.sample(diftexSmplr, uv);
+    bool _42 = _37.quality > 0;
+    bool _49;
+    if (_42)
+    {
+        _49 = _37.directions > 0;
+    }
+    else
+    {
+        _49 = _42;
+    }
+    if (_49)
+    {
+        for (float d = 0.0; d < 6.283185482025146484375; d += (6.283185482025146484375 / float(_37.directions)))
+        {
+            float _67 = 1.0 / float(_37.quality);
+            for (float i = _67; i <= 1.0; i += (1.0 / float(_37.quality)))
+            {
+                float2 sampPos = uv + ((float2(cos(d), sin(d)) * _37.blurAmount) * i);
+                if (sampPos.x > 0.999000012874603271484375)
+                {
+                    sampPos.x = 0.999000012874603271484375;
+                }
+                else
+                {
+                    if (sampPos.x <= 0.0)
+                    {
+                        sampPos.x = 0.0;
+                    }
+                }
+                if (sampPos.y > 0.999000012874603271484375)
+                {
+                    sampPos.y = 0.999000012874603271484375;
+                }
+                else
+                {
+                    if (sampPos.y <= 0.0)
+                    {
+                        sampPos.y = 0.0;
+                    }
+                }
+                color += diftex.sample(diftexSmplr, sampPos);
+            }
+        }
+    }
+    color /= float4((float(_37.quality) * float(_37.directions)) + 1.0);
+    out.fragColor = color;
+    out.depth = 0.0;
+    return out;
+}
+

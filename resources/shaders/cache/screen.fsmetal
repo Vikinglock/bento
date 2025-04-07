@@ -1,0 +1,91 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Light
+{
+    float3 position;
+    float constant0;
+    float linear;
+    float quadratic;
+    float3 ambient;
+    float3 diffuse;
+    float3 specular;
+};
+
+struct Uniforms
+{
+    packed_float3 pos;
+    int numLights;
+    float3 ambientColor;
+    float3 positions[50];
+    float4 constants[50];
+    float4 linears[50];
+    float4 quadratics[50];
+    float3 ambients[50];
+    float3 diffuses[50];
+    float3 speculars[50];
+    float tspecular;
+};
+
+struct main0_out
+{
+    float depth [[color(0)]];
+    float4 fragColor [[color(1)]];
+};
+
+struct main0_in
+{
+    float2 fUv [[user(locn0)]];
+};
+
+static inline __attribute__((always_inline))
+float3 calculateLighting(thread const Light& light, thread float3& fragPos, thread float3& fragNorm, thread float3& viewDir, constant Uniforms& _55, texture2d<float> diftex, sampler diftexSmplr, thread float2& fUv)
+{
+    float3 lightDir = fast::normalize(light.position - fragPos);
+    float diff = fast::max(dot(fragNorm, lightDir), 0.0);
+    float3 reflectDir = reflect(-lightDir, fragNorm);
+    float spec = powr(fast::max(dot(viewDir, reflectDir), 0.0), _55.tspecular);
+    float _distance = length(light.position - fragPos);
+    float attenuation = 1.0 / ((light.constant0 + (light.linear * _distance)) + (light.quadratic * (_distance * _distance)));
+    float3 text = float3(diftex.sample(diftexSmplr, fUv).xyz);
+    float3 ambient = light.ambient * text;
+    float3 diffuse = (light.diffuse * diff) * text;
+    float3 specular = (light.specular * spec) * text;
+    ambient *= attenuation;
+    diffuse *= attenuation;
+    specular *= attenuation;
+    return (ambient + diffuse) + specular;
+}
+
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _55 [[buffer(0)]], texture2d<float> diftex [[texture(0)]], texture2d<float> nortex [[texture(1)]], texture2d<float> depthtex [[texture(2)]], texture2d<float> postex [[texture(3)]], sampler diftexSmplr [[sampler(0)]], sampler nortexSmplr [[sampler(1)]], sampler depthtexSmplr [[sampler(2)]], sampler postexSmplr [[sampler(3)]])
+{
+    main0_out out = {};
+    float t = 0.4000000059604644775390625;
+    float3 finalColor = float3(0.100000001490116119384765625) + _55.ambientColor;
+    float3 fragNorm = fast::normalize((nortex.sample(nortexSmplr, in.fUv).xyz * 2.0) - float3(1.0));
+    float fragDepth = depthtex.sample(depthtexSmplr, in.fUv).x;
+    float3 fragPos = postex.sample(postexSmplr, in.fUv).xyz;
+    float3 dif = diftex.sample(diftexSmplr, in.fUv).xyz;
+    float3 viewDir = fast::normalize(float3(_55.pos) - fragPos);
+    Light light;
+    for (int i = 0; i < _55.numLights; i++)
+    {
+        light.position = _55.positions[i];
+        light.ambient = _55.ambients[i];
+        light.diffuse = _55.diffuses[i];
+        light.specular = _55.speculars[i];
+        light.constant0 = _55.constants[i].x;
+        light.linear = _55.linears[i].x;
+        light.quadratic = _55.quadratics[i].x;
+        Light param = light;
+        finalColor += calculateLighting(param, fragPos, fragNorm, viewDir, _55, diftex, diftexSmplr, in.fUv);
+    }
+    out.fragColor = float4(finalColor * diftex.sample(diftexSmplr, in.fUv).xyz, 1.0);
+    out.depth = 0.0;
+    return out;
+}
+
