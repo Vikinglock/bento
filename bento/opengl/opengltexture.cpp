@@ -17,6 +17,7 @@ OpenGLTexture::OpenGLTexture(const char* filepath) {
 
     stbi_image_free(data);
 }
+OpenGLTexture::OpenGLTexture() {}
 
 OpenGLTexture::OpenGLTexture(unsigned int tex) {
     texture = tex;

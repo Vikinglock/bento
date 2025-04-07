@@ -6,6 +6,7 @@
 
 class OpenGLTexture {
 public:
+    OpenGLTexture();
     OpenGLTexture(const char* filepath);
     OpenGLTexture(unsigned int texture);
     ~OpenGLTexture();

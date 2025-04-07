@@ -56,25 +56,25 @@ private:
 
 class Object{
 public:
-    Object(const char *n, glm::vec3 pos, Mesh m, Texture* tex):mesh(m),texture(tex){
+    Object(const char *n, glm::mat4 t, Mesh m, Texture* tex):mesh(m),texture(tex){
         name = n;
-        position = pos;
+        transformation = t;
     }
-    Object(const char *n, glm::vec3 pos, Mesh m):mesh(m),texture(nullptr){
+    Object(const char *n, glm::mat4 t, Mesh m):mesh(m),texture(nullptr){
         name = n;
-        position = pos;
+        transformation = t;
     }
-    Object(const char *n, glm::vec3 pos, Texture* tex):mesh(nullptr),texture(tex){
+    Object(const char *n, glm::mat4 t, Texture* tex):mesh(nullptr),texture(tex){
         name = n;
-        position = pos;
+        transformation = t;
     }
-    Object(const char *n, glm::vec3 pos, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(new Texture(texPath)){
+    Object(const char *n, glm::mat4 t, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(new Texture(texPath)){
         name = n;
-        position = pos;
+        transformation = t;
     }
-    Object(const char *n, glm::vec3 pos, const char *meshPath):mesh(Mesh(meshPath)),texture(nullptr){
+    Object(const char *n, glm::mat4 t, const char *meshPath):mesh(Mesh(meshPath)),texture(nullptr){
         name = n;
-        position = pos;
+        transformation = t;
     }
     ~Object(){
 
@@ -83,7 +83,7 @@ public:
         bento->setVertices(mesh.getVertexBuffer());
         bento->setNormals(mesh.getNormalBuffer());
         bento->setUvs(mesh.getUVBuffer());
-        bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
+        bento->setModelMatrix(transformation);
         if(texture){
             bento->bindTexture(texture,0);
         }
@@ -94,7 +94,7 @@ public:
         bento->setVertices(mesh.getVertexBuffer());
         bento->setNormals(mesh.getNormalBuffer());
         bento->setUvs(mesh.getUVBuffer());
-        bento->setModelMatrix(glm::translate(glm::mat4(1.0),position));
+        bento->setModelMatrix(transformation);
         if(texture){
             bento->bindTexture(texture,0);
         }
@@ -103,9 +103,10 @@ public:
     }
     const Mesh& getMesh() const { return mesh; }
     const Texture* getTexture() const { return texture; }
+
+    glm::mat4 transformation;
 private:
     std::string name;
-    glm::vec3 position;
     Mesh mesh;
     Texture* texture;
 };

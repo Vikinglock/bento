@@ -1,0 +1,38 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Uniforms
+{
+    float threshold;
+};
+
+struct main0_out
+{
+    float depth [[color(0)]];
+    float4 fragColor [[color(1)]];
+};
+
+struct main0_in
+{
+    float2 fUv [[user(locn0)]];
+};
+
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _49 [[buffer(0)]], texture2d<float> diftex [[texture(0)]], sampler diftexSmplr [[sampler(0)]])
+{
+    main0_out out = {};
+    float2 uv = float2(in.fUv.x, 1.0 - in.fUv.y);
+    float3 color = diftex.sample(diftexSmplr, uv).xyz;
+    if ((((color.x + color.y) + color.z) / 3.0) > _49.threshold)
+    {
+        out.fragColor = float4(color, 1.0);
+    }
+    else
+    {
+        out.fragColor = float4(0.0, 0.0, 0.0, 1.0);
+    }
+    out.depth = 0.0;
+    return out;
+}
+

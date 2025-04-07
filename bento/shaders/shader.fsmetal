@@ -1,0 +1,32 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct main0_out
+{
+    float depth [[color(0)]];
+    float4 fragColor [[color(1)]];
+    float4 fragNormalOut [[color(2)]];
+    float4 fragPosOut [[color(3)]];
+};
+
+struct main0_in
+{
+    float3 fragPos [[user(locn0)]];
+    float3 fragNormal [[user(locn1)]];
+    float2 fragUV [[user(locn2)]];
+    float4 fragUPos [[user(locn3)]];
+};
+
+fragment main0_out main0(main0_in in [[stage_in]], texture2d<float> tex [[texture(0)]], sampler texSmplr [[sampler(0)]])
+{
+    main0_out out = {};
+    float3 textureColor = tex.sample(texSmplr, in.fragUV).xyz;
+    out.fragColor = float4(textureColor, 1.0);
+    out.fragNormalOut = float4((in.fragNormal / float3(2.0)) + float3(0.5), 1.0);
+    out.depth = in.fragUPos.z;
+    out.fragPosOut = float4(in.fragPos, 1.0);
+    return out;
+}
+

@@ -120,10 +120,13 @@ MetalTexture::MetalTexture(const char* filepath) {
 }
 
 MetalTexture::MetalTexture(id<MTLTexture> tex,id<MTLSamplerState> samp) {
-    @autoreleasepool {
-        texture = [tex retain];
-        sampler = [samp retain];
-    }
+    texture = [tex retain];
+    sampler = [samp retain];
+}
+
+MetalTexture::MetalTexture() {
+    texture = nil;
+    sampler = nil;
 }
 
 MetalTexture::~MetalTexture() {

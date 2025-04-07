@@ -8,8 +8,8 @@ int main(int argc, char* argv[]) {
 
     std::ifstream gf(argv[1]);
     if (!gf.is_open()) {
-        std::cerr << "cannot open file: " << argv[1] << std::endl;//do not mind the commit history
-        return 0;//                                                 i regret nothing
+        std::cerr << "cannot open file: " << argv[1] << std::endl;
+        return 0;//                                                 muahahahahah
     }
     std::string glsl((std::istreambuf_iterator<char>(gf)), std::istreambuf_iterator<char>());
 
