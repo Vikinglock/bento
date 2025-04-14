@@ -89,6 +89,7 @@ const unsigned char* buttons[GLFW_JOYSTICK_LAST];
 int axisCount;
 const float* axes[GLFW_JOYSTICK_LAST];
 //opengl is so much more straightforward
+//metal has grown on me though
 
 // #### MAIN ####
 void Bento::init(const char *title, int width, int height, int x, int y){
@@ -121,13 +122,6 @@ void Bento::init(const char *title, int width, int height, int x, int y){
         std::cerr << "could not initialize glad (not glad)" << std::endl;
         return;
     }
-
-    system("glslangValidator -V --quiet ./bento/shaders/shader.vert -o vert.spv");
-    system("glslangValidator -V --quiet ./bento/shaders/shader.frag -o frag.spv");
-    system("spirv-cross vert.spv --version 330 --output ./bento/shaders/shader.vs");
-    system("spirv-cross frag.spv --version 330 --output ./bento/shaders/shader.fs");
-    system("./bento/shaders/330c ./bento/shaders/shader.vs ./bento/shaders/shader.fs");
-    system("rm vert.spv frag.spv");
 
     vertShaderSource = loadShaderSource("./bento/shaders/shader.vs");
     fragShaderSource = loadShaderSource("./bento/shaders/shader.fs");
@@ -163,24 +157,6 @@ void Bento::init(const char *title, int width, int height, int x, int y){
     depthTexture.resize(1);
     glGenTextures(1, &depthTexture[0]);
 
-
-    modelLoc = glGetUniformLocation(shader->program, "model");
-    viewLoc = glGetUniformLocation(shader->program, "view");
-    projectionLoc = glGetUniformLocation(shader->program, "projection");
-    positionLoc = glGetUniformLocation(shader->program, "tpos");
-
-
-    positionsLoc = glGetUniformLocation(shader->program, "positions");
-    constantsLoc = glGetUniformLocation(shader->program, "constants");
-    linearsLoc = glGetUniformLocation(shader->program, "linears");
-    quadsLoc = glGetUniformLocation(shader->program, "quadratics");
-    ambientsLoc = glGetUniformLocation(shader->program, "ambients");
-    diffusesLoc = glGetUniformLocation(shader->program, "diffuses");
-    specularsLoc = glGetUniformLocation(shader->program, "speculars");
-    numLightsLoc = glGetUniformLocation(shader->program, "numLights");
-
-    ambientLoc = glGetUniformLocation(shader->program, "ambient");
-
     for (int i = GLFW_JOYSTICK_1; i <= GLFW_JOYSTICK_LAST; ++i) {
         if (glfwJoystickPresent(i)) {
             buttons[i] = glfwGetJoystickButtons(i, &buttonCount);
@@ -196,9 +172,9 @@ void Bento::init(const char *title, int width, int height, int x, int y){
     glGenFramebuffers(1, &framebuffer);
     glGenTextures(1, &depthRTexture);
     
-    glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+    
 }
 
 
@@ -295,12 +271,6 @@ void Bento::setShader(Shader* shd) {
 }
 
 void Bento::draw() {
-    if(useDefShader){
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    }
-    
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, vertices.size());
     glBindVertexArray(0);
@@ -389,22 +359,19 @@ void Bento::predrawTex(int width, int height) {
         attachments[i] = GL_COLOR_ATTACHMENT0 + startAtt + i;
     }
     glDrawBuffers(endAtt-startAtt, attachments);
+
+    float clearColorDepth[4] = {0.0,0.0,0.0,1.0};
+    glClearBufferfv(GL_COLOR,0,clearColorDepth);
     
     float clearColorValues[4] = {clearColor.x, clearColor.y, clearColor.z, clearColor.w};
-    for(int i = 0; i < endAtt-startAtt; i++) {
+    for(int i = startAtt+1; i < endAtt; i++) {
         glClearBufferfv(GL_COLOR, i, clearColorValues);
     }
-    glEnable(GL_DEPTH_TEST);
     float clearDepth = 1.0f;
     glClearBufferfv(GL_DEPTH, 0, &clearDepth);
 }
 
 void Bento::drawTex() {
-    if(useDefShader){
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    }
     GLuint attachments[(endAtt-startAtt) + 1];
     attachments[0] = GL_COLOR_ATTACHMENT0;
     for(int i = 1; i < (endAtt-startAtt) + 1; i++){
@@ -444,10 +411,6 @@ void Bento::renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind){
 void Bento::normalizeTexture(int index,bool normalized){
     normalizedTextures[index] = normalized;
 }
-
-void Bento::setModelMatrix(const glm::mat4& m) {model = m;}
-void Bento::setViewMatrix(const glm::mat4& v,const glm::vec3 p) {view = v;pos = p;}
-void Bento::setProjectionMatrix(const glm::mat4& p) {projection = p;}
 bool Bento::isRunning(){return !glfwWindowShouldClose(window);}
 
 // #### INPUT ####
@@ -709,13 +672,16 @@ Shader::Shader(std::string vertPath, std::string fragPath){
         fragDir = fragPath.substr(0, lastSlash);
         fragFilename = fragPath.substr(lastSlash, fragPath.rfind('.') - lastSlash);
     }
-    system(("glslangValidator -V --quiet " + vertPath + " -o "+vertDir+vertFilename+".vert.spv").c_str());
-    system(("glslangValidator -V --quiet " + fragPath + " -o "+fragDir+fragFilename+".frag.spv").c_str());
-    system(("spirv-cross "+vertDir+vertFilename+".vert.spv --version 330 --output " +vertDir+"/cache"+vertFilename + ".vs").c_str());
-    system(("spirv-cross "+fragDir+fragFilename+".frag.spv --version 330 --output " +fragDir+"/cache"+fragFilename + ".fs").c_str());
-    system(("./bento/shaders/330c "+vertDir+"/cache"+vertFilename+".vs "+fragDir+"/cache"+fragFilename+".fs").c_str());
-    system(("rm "+vertDir+vertFilename+".vert.spv "+fragDir+fragFilename+".frag.spv").c_str());
-    std::cout << " to "+vertDir+"/cache"+vertFilename+".vs and "+fragDir+"/cache"+fragFilename+".fs\n";
+
+    #ifdef CONVERT
+        system(("glslangValidator -V --quiet " + vertPath + " -o "+vertDir+vertFilename+".vert.spv").c_str());
+        system(("glslangValidator -V --quiet " + fragPath + " -o "+fragDir+fragFilename+".frag.spv").c_str());
+        system(("spirv-cross "+vertDir+vertFilename+".vert.spv --version 330 --output " +vertDir+"/cache"+vertFilename + ".vs").c_str());
+        system(("spirv-cross "+fragDir+fragFilename+".frag.spv --version 330 --output " +fragDir+"/cache"+fragFilename + ".fs").c_str());
+        system(("./bento/shaders/330c "+vertDir+"/cache"+vertFilename+".vs "+fragDir+"/cache"+fragFilename+".fs").c_str());
+        system(("rm "+vertDir+vertFilename+".vert.spv "+fragDir+fragFilename+".frag.spv").c_str());
+        std::cout << " to "+vertDir+"/cache"+vertFilename+".vs and "+fragDir+"/cache"+fragFilename+".fs\n";
+    #endif
     
     vertSource = loadShaderSource(vertDir+"/cache"+vertFilename+".vs");
     fragSource = loadShaderSource(fragDir+"/cache"+fragFilename+".fs");
@@ -740,5 +706,15 @@ Shader::Shader(std::string vertPath, std::string fragPath){
         textureLocs[index] = glGetUniformLocation(program, name.c_str());
         index++;
         begin = match.suffix().first;
+    }
+}
+
+
+void Bento::enable(Feature f, bool enabled){
+    switch(f){
+        case 0:glfwSwapInterval(0);break;
+        case 1:if(enabled)glEnable(GL_DEPTH_TEST);else glDisable(GL_DEPTH_TEST);break;
+        case 2:case 3://idk just do some push ups or something
+        break;
     }
 }

@@ -9,6 +9,8 @@
 #include "../lib/imgui/backends/imgui_impl_opengl3.h"
 
 
+#include "../features.h"
+
 #include "../lib/glm/glm.hpp"
 #include "../lib/glm/gtc/matrix_transform.hpp"
 #include "../lib/glm/gtc/type_ptr.hpp"
@@ -202,9 +204,6 @@ public:
     void setVertices(vertexBuffer vertices);
     void setNormals(normalBuffer normals);
     void setUvs(uvBuffer uvs);
-    void setProjectionMatrix(const glm::mat4& m);
-    void setViewMatrix(const glm::mat4& v,const glm::vec3 p);
-    void setModelMatrix(const glm::mat4& p);
     glm::vec2 getWindowSize();
     glm::vec2 getWindowPos();
     void setWindowPos(glm::vec2 pos);
@@ -235,6 +234,7 @@ public:
     void renderToTex(Texture*& tex1, Texture*& tex2,int ind);
     void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
     void setShader(Shader* shader);
+    void enable(Feature f,bool enabled = true);
 
     void normalizeTexture(int index, bool normalized);
 

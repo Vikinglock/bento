@@ -17,6 +17,8 @@ subject to the following restrictions:
 #define BULLET_DYNAMICS_COMMON_H
 
 ///Common headerfile includes for Bullet Dynamics, including Collision Detection
+
+//uhh this is changed all i did was make it local
 #include "btBulletCollisionCommon.h"
 
 #include "BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h"

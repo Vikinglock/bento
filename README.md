@@ -2,7 +2,7 @@
 
 bento (ベント) game engine by me :)
 
-**currently bento is very bare bones so don't mind that it's missing lot of features that a regular game engine'd have**
+**currently bento does not in fact have a ui so familiarize yourself with a text editor or run as fast as you can**
 
 this project uses the MIT license so it's gonna be free so just include that in your project
 
@@ -30,35 +30,19 @@ Bento *bento = new Bento();
 bento->init("TITLE",width,height);
 ```
 
-### open source
-
-bento is open source, meaning anyone on the interwebs can view this code, download it, and modify it to their heart's content. (although you're on github so you probably know what this means)
-
 ### lightweight
 
-bento is less than 130MB
+bento is less than 200MB
 
 also the example runs at >70 fps only taking 160-180 MB ram on my computer
 
 ### cross-platform
 
-bento is (mostly) CROSS-PLATFORM!!!!!
+not gonna lie it's not very cross platform right now
 
-bento was written in opengl **and** metal
+it's a propietary engine so i can do what i want with it
 
-The current supported platforms are:
-- windows
-- mac
-- linux
-
-with support coming soon (in a while) for:
-- iphone
-- android
-- consoles (nintendo, sony, microsoft)
-- pcvr
-- standalone vr (quest, pico)
-
-i'll try adding support for older gen consoles too (:
+it builds for mac and windows and probably linux too with little hassle but it basically only compiles when using mac
 
 ## include
 
@@ -72,6 +56,9 @@ all you gotta do is put this in the top of your code
 
 ## building
 ### MACOS
+
+for the top two you can add -convert to convert the shaders
+
 ```
 sh run.sh -metal <output> <input1> <input2> ...
 ```
@@ -79,6 +66,14 @@ OR
 ```
 sh run.sh -opengl <output> <input1> <input2> ...
 ```
+OR
+```
+sh run.sh -windows <output> <input1> <input2> ...
+```
+
+warning: these are untested and probably don't work
+
+
 ### LINUX
 ```
 sh runlinux.sh <output> <input1> <input2> ...

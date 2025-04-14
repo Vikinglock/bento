@@ -1,9 +1,55 @@
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
+#pragma clang diagnostic ignored "-Wmissing-braces"
 
 #include <metal_stdlib>
 #include <simd/simd.h>
 
 using namespace metal;
+
+template<typename T, size_t Num>
+struct spvUnsafeArray
+{
+    T elements[Num ? Num : 1];
+    
+    thread T& operator [] (size_t pos) thread
+    {
+        return elements[pos];
+    }
+    constexpr const thread T& operator [] (size_t pos) const thread
+    {
+        return elements[pos];
+    }
+    
+    device T& operator [] (size_t pos) device
+    {
+        return elements[pos];
+    }
+    constexpr const device T& operator [] (size_t pos) const device
+    {
+        return elements[pos];
+    }
+    
+    constexpr const constant T& operator [] (size_t pos) const constant
+    {
+        return elements[pos];
+    }
+    
+    threadgroup T& operator [] (size_t pos) threadgroup
+    {
+        return elements[pos];
+    }
+    constexpr const threadgroup T& operator [] (size_t pos) const threadgroup
+    {
+        return elements[pos];
+    }
+};
+
+// Implementation of the GLSL mod() function, which is slightly different than Metal fmod()
+template<typename Tx, typename Ty>
+inline Tx mod(Tx x, Ty y)
+{
+    return x - y * floor(x / y);
+}
 
 struct Light
 {
@@ -31,6 +77,8 @@ struct Uniforms
     float tspecular;
 };
 
+constant spvUnsafeArray<float, 64> _229 = spvUnsafeArray<float, 64>({ 0.0, 0.5, 0.125, 0.625, 0.03125, 0.53125, 0.15625, 0.65625, 0.75, 0.25, 0.875, 0.375, 0.78125, 0.28125, 0.90625, 0.40625, 0.1875, 0.6875, 0.0625, 0.5625, 0.21875, 0.71875, 0.09375, 0.59375, 0.9375, 0.4375, 0.8125, 0.3125, 0.96875, 0.46875, 0.84375, 0.34375, 0.046875, 0.546875, 0.171875, 0.671875, 0.015625, 0.515625, 0.140625, 0.640625, 0.796875, 0.296875, 0.921875, 0.421875, 0.765625, 0.265625, 0.890625, 0.390625, 0.234375, 0.734375, 0.109375, 0.609375, 0.203125, 0.703125, 0.078125, 0.578125, 0.984375, 0.484375, 0.859375, 0.359375, 0.953125, 0.453125, 0.828125, 0.328125 });
+
 struct main0_out
 {
     float depth [[color(0)]];
@@ -43,12 +91,12 @@ struct main0_in
 };
 
 static inline __attribute__((always_inline))
-float3 calculateLighting(thread const Light& light, thread float3& fragPos, thread float3& fragNorm, thread float3& viewDir, constant Uniforms& _55, texture2d<float> diftex, sampler diftexSmplr, thread float2& fUv)
+float3 calculateLighting(thread const Light& light, thread float3& fragPos, thread float3& fragNorm, thread float3& viewDir, constant Uniforms& _62, texture2d<float> diftex, sampler diftexSmplr, thread float2& fUv)
 {
     float3 lightDir = fast::normalize(light.position - fragPos);
     float diff = fast::max(dot(fragNorm, lightDir), 0.0);
     float3 reflectDir = reflect(-lightDir, fragNorm);
-    float spec = powr(fast::max(dot(viewDir, reflectDir), 0.0), _55.tspecular);
+    float spec = powr(fast::max(dot(viewDir, reflectDir), 0.0), _62.tspecular);
     float _distance = length(light.position - fragPos);
     float attenuation = 1.0 / ((light.constant0 + (light.linear * _distance)) + (light.quadratic * (_distance * _distance)));
     float3 text = float3(diftex.sample(diftexSmplr, fUv).xyz);
@@ -61,28 +109,45 @@ float3 calculateLighting(thread const Light& light, thread float3& fragPos, thre
     return (ambient + diffuse) + specular;
 }
 
-fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _55 [[buffer(0)]], texture2d<float> diftex [[texture(0)]], texture2d<float> nortex [[texture(1)]], texture2d<float> depthtex [[texture(2)]], texture2d<float> postex [[texture(3)]], sampler diftexSmplr [[sampler(0)]], sampler nortexSmplr [[sampler(1)]], sampler depthtexSmplr [[sampler(2)]], sampler postexSmplr [[sampler(3)]])
+static inline __attribute__((always_inline))
+float dither(thread const float2& p, thread const float& a)
+{
+    int index = (int(mod(p.y, 8.0)) * 8) + int(mod(p.x, 8.0));
+    float threshold = _229[index];
+    return float(a > threshold);
+}
+
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _62 [[buffer(0)]], texture2d<float> diftex [[texture(0)]], texture2d<float> nortex [[texture(1)]], texture2d<float> depthtex [[texture(2)]], texture2d<float> postex [[texture(3)]], sampler diftexSmplr [[sampler(0)]], sampler nortexSmplr [[sampler(1)]], sampler depthtexSmplr [[sampler(2)]], sampler postexSmplr [[sampler(3)]], float4 gl_FragCoord [[position]])
 {
     main0_out out = {};
     float t = 0.4000000059604644775390625;
-    float3 finalColor = float3(0.100000001490116119384765625) + _55.ambientColor;
+    float3 finalColor = float3(0.100000001490116119384765625) + _62.ambientColor;
     float3 fragNorm = fast::normalize((nortex.sample(nortexSmplr, in.fUv).xyz * 2.0) - float3(1.0));
     float fragDepth = depthtex.sample(depthtexSmplr, in.fUv).x;
     float3 fragPos = postex.sample(postexSmplr, in.fUv).xyz;
     float3 dif = diftex.sample(diftexSmplr, in.fUv).xyz;
-    float3 viewDir = fast::normalize(float3(_55.pos) - fragPos);
-    Light light;
-    for (int i = 0; i < _55.numLights; i++)
+    float3 viewDir = fast::normalize(float3(_62.pos) - fragPos);
+    if (fragDepth > 0.0)
     {
-        light.position = _55.positions[i];
-        light.ambient = _55.ambients[i];
-        light.diffuse = _55.diffuses[i];
-        light.specular = _55.speculars[i];
-        light.constant0 = _55.constants[i].x;
-        light.linear = _55.linears[i].x;
-        light.quadratic = _55.quadratics[i].x;
-        Light param = light;
-        finalColor += calculateLighting(param, fragPos, fragNorm, viewDir, _55, diftex, diftexSmplr, in.fUv);
+        Light light;
+        for (int i = 0; i < _62.numLights; i++)
+        {
+            light.position = _62.positions[i];
+            light.ambient = _62.ambients[i];
+            light.diffuse = _62.diffuses[i];
+            light.specular = _62.speculars[i];
+            light.constant0 = _62.constants[i].x;
+            light.linear = _62.linears[i].x;
+            light.quadratic = _62.quadratics[i].x;
+            Light param = light;
+            float3 color = calculateLighting(param, fragPos, fragNorm, viewDir, _62, diftex, diftexSmplr, in.fUv);
+            float2 param_1 = gl_FragCoord.xy;
+            float param_2 = ((color.x + color.y) + color.z) / 3.0;
+            if (dither(param_1, param_2) > 0.5)
+            {
+                finalColor += color;
+            }
+        }
     }
     out.fragColor = float4(finalColor * diftex.sample(diftexSmplr, in.fUv).xyz, 1.0);
     out.depth = 0.0;
