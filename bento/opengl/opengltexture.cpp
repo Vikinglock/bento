@@ -4,7 +4,7 @@
 
 OpenGLTexture::OpenGLTexture(const char* filepath) {
     stbi_set_flip_vertically_on_load(1);
-    unsigned char* data = stbi_load(filepath, &width, &height, &channels, 4);
+    unsigned char* data = stbi_load(filepath, &width, &height, &channels, STBI_rgb_alpha);
     
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -24,5 +24,5 @@ OpenGLTexture::OpenGLTexture(unsigned int tex) {
 }
 
 OpenGLTexture::~OpenGLTexture() {
-    //glDeleteTextures(1, &texture);
+    glDeleteTextures(1, &texture);
 }

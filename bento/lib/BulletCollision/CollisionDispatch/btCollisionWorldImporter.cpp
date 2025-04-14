@@ -15,10 +15,10 @@ subject to the following restrictions:
 
 #include "btCollisionWorldImporter.h"
 #include "btBulletCollisionCommon.h"
-#include "LinearMath/btSerializer.h"  //for btBulletSerializedArrays definition
+#include "../../LinearMath/btSerializer.h"  //for btBulletSerializedArrays definition
 
 #ifdef SUPPORT_GIMPACT_SHAPE_IMPORT
-#include "BulletCollision/Gimpact/btGImpactShape.h"
+#include "../../BulletCollision/Gimpact/btGImpactShape.h"
 #endif  //SUPPORT_GIMPACT_SHAPE_IMPORT
 
 btCollisionWorldImporter::btCollisionWorldImporter(btCollisionWorld* world)

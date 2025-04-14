@@ -8,6 +8,9 @@
 #import <Cocoa/Cocoa.h>
 #import <GameController/GameController.h>
 
+//ay yo i'm gonna leave blending as it is
+//because for my own use it's gonna be about as primitive as it is here
+//improve upon it if you wish but i'm gonna fix it later
 
 ALCdevice* aldevice = nullptr;
 ALCcontext* context = nullptr;
@@ -59,6 +62,8 @@ struct controller{
 @property (nonatomic, strong) NSApplication *app;
 @property (nonatomic, assign) BOOL shouldClose;
 @property (nonatomic, strong) id<MTLDepthStencilState> depthStencilState;
+@property (nonatomic, strong) id<MTLDepthStencilState> noDepthStencilState;
+@property (nonatomic, strong) id<MTLDepthStencilState> yesDepthStencilState;
 @property (nonatomic, strong) id<MTLTexture> appTexture;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *keyStates;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *mouseStates;
@@ -70,7 +75,6 @@ struct controller{
 @property (nonatomic, strong) id<MTLTexture> depthTexture;
 @property (nonatomic, strong) id<MTLTexture> depthTTexture;
 @property (nonatomic, strong) id<MTLSamplerState> rTSampler;
-@property (nonatomic) int numLights;
 @property (nonatomic) int lastWidth;
 @property (nonatomic) int lastHeight;
 @property (nonatomic) glm::vec3 pos;
@@ -79,9 +83,6 @@ struct controller{
 @property (nonatomic) NSInteger vertCount;
 @property (nonatomic) NSInteger normCount;
 @property (nonatomic) NSInteger uvCount;
-@property (nonatomic) float *model;
-@property (nonatomic) float *view;
-@property (nonatomic) float *projection;
 @property (nonatomic) bool fullscreenable;
 - (void)initRenderer:(const char *)title width:(int)width height:(int)height x:(int)x y:(int)y;
 - (void)render;
@@ -99,13 +100,6 @@ struct controller{
         device = MTLCreateSystemDefaultDevice();
         self.commandQueue = [self.device newCommandQueue];
         self.shouldClose = NO;
-
-        self.model = (float *)malloc(sizeof(float) * 16);
-        self.view = (float *)malloc(sizeof(float) * 16);
-        self.projection = (float *)malloc(sizeof(float) * 16);
-        self.numLights = 0;
-
-
 
         MTLSamplerDescriptor *samplerDescriptor = [[MTLSamplerDescriptor alloc] init];
         samplerDescriptor.sAddressMode = MTLSamplerAddressModeRepeat;
@@ -155,16 +149,6 @@ struct controller{
         [self.metalLayer setFrame:frame];
         [self.window.contentView setLayer:self.metalLayer];
         [self.window.contentView setWantsLayer:YES];
-
-        //[self toggleFullScreen];
-
-
-        system("glslangValidator -V --quiet ./bento/shaders/shader.vert -o vert.spv");
-        system("glslangValidator -V --quiet ./bento/shaders/shader.frag -o frag.spv");
-        system("spirv-cross vert.spv --msl --output ./bento/shaders/shader.vsmetal");
-        system("spirv-cross frag.spv --msl --output ./bento/shaders/shader.fsmetal");
-        system("./bento/shaders/bindfix ./bento/shaders/shader.vert ./bento/shaders/shader.vsmetal");
-        system("rm vert.spv frag.spv");
         
         NSString *vertMetalPath = @"./bento/shaders/shader.vsmetal";
         NSString *fragMetalPath = @"./bento/shaders/shader.fsmetal";
@@ -228,7 +212,7 @@ struct controller{
         while (std::regex_search(start, fragShaderSourceC.cend(), match, colorRegex)) {
             if (match.size()>1)highest = std::max(highest,std::stoi(match[1].str()));
             start = match.suffix().first;
-        }
+        }        
         pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatR32Float;
         for(int i = 0; i <= highest; i++)pipelineDescriptor.colorAttachments[i+1].pixelFormat = MTLPixelFormatRGBA32Float;
 
@@ -255,7 +239,13 @@ struct controller{
         MTLDepthStencilDescriptor *depthStencilDesc = [[MTLDepthStencilDescriptor alloc] init];
         depthStencilDesc.depthCompareFunction = MTLCompareFunctionLess;
         depthStencilDesc.depthWriteEnabled = YES;
-        self.depthStencilState = [self.device newDepthStencilStateWithDescriptor:depthStencilDesc];
+        self.yesDepthStencilState = [self.device newDepthStencilStateWithDescriptor:depthStencilDesc];
+        depthStencilDesc = [[MTLDepthStencilDescriptor alloc] init];
+        depthStencilDesc.depthCompareFunction = MTLCompareFunctionLess;
+        depthStencilDesc.depthWriteEnabled = NO;
+        self.noDepthStencilState = [self.device newDepthStencilStateWithDescriptor:depthStencilDesc];
+
+        self.depthStencilState = self.noDepthStencilState;
 
         MTLTextureDescriptor *appTextureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
                                                                                                     width:width
@@ -355,12 +345,6 @@ struct controller{
         self.passDescriptor.depthAttachment.clearDepth = 1.0;
         self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
         self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
-
-        int numLights = self.numLights;//HOLY HELL IT WORKS
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
     }
 
     - (void)draw {
@@ -369,11 +353,6 @@ struct controller{
         [self.commandEncoder setVertexBuffer:self.vertexBuffer offset:0 atIndex:0];
         [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
         [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
-        
-        [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-        [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-        [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-        [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
 
         for(int i=0;i<texture.size();i++){
             [self.commandEncoder setFragmentTexture:texture[i] atIndex:i];
@@ -430,10 +409,10 @@ struct controller{
                     outTexture[i] = [self.device newTextureWithDescriptor:textureDesc];
                 }
             }
-            self.passDescriptor.colorAttachments[startAtt+i+1].texture = outTexture[i];
-            self.passDescriptor.colorAttachments[startAtt+i+1].clearColor = MTLClearColorMake(clearColor.x, clearColor.y, clearColor.z, 1.0);
-            self.passDescriptor.colorAttachments[startAtt+i+1].loadAction = MTLLoadActionClear;
-            self.passDescriptor.colorAttachments[startAtt+i+1].storeAction = MTLStoreActionStore;
+            self.passDescriptor.colorAttachments[startAtt+(i-startTex)+1].texture = outTexture[i];
+            self.passDescriptor.colorAttachments[startAtt+(i-startTex)+1].clearColor = MTLClearColorMake(clearColor.x, clearColor.y, clearColor.z, 1.0);
+            self.passDescriptor.colorAttachments[startAtt+(i-startTex)+1].loadAction = MTLLoadActionClear;
+            self.passDescriptor.colorAttachments[startAtt+(i-startTex)+1].storeAction = MTLStoreActionStore;
         }
         if (!self.depthTTexture || self.depthTTexture.width != width || self.depthTTexture.height != height) {
             [self.depthTTexture release];
@@ -451,15 +430,6 @@ struct controller{
         self.passDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
 
         self.commandEncoder = [self.commandBuffer renderCommandEncoderWithDescriptor:self.passDescriptor];
-        int numLights = self.numLights;
-
-
-        if(useDefShader){
-            [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
-            [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-            [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-            [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-        }
     }
 
 
@@ -469,18 +439,25 @@ struct controller{
         useDefShader = shd==defaultShader;
     }
 
-    - (void)setUniform:(float*)data name:(std::string)name onvertex:(bool)onvertex{
+    - (void)setUniform:(float*)data name:(std::string)name{
         memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents+shader->uniformMapFrag[name],data,shader->sizeMapFrag[name]);
     }
 
-    - (void)setUniformInt:(int*)data name:(std::string)name onvertex:(int)onvertex{
+    - (void)setVertexUniform:(float*)data name:(std::string)name{
+        memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->vertBuffer).contents+shader->uniformMapVert[name],data,shader->sizeMapVert[name]);
+    }
+
+    - (void)setUniformInt:(int*)data name:(std::string)name{
         memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents+shader->uniformMapFrag[name],data,shader->sizeMapFrag[name]);
+    }
+    - (void)setVertexUniformInt:(int*)data name:(std::string)name{
+        memcpy((uint8_t*)((__bridge id<MTLBuffer>)shader->vertBuffer).contents+shader->uniformMapVert[name],data,shader->sizeMapVert[name]);
     }
 
     - (void)drawTex {
-        /*if(!useDefShader){
-            uint8_t* fragPtr = (uint8_t*)((__bridge id<MTLBuffer>)shader->fragBuffer).contents;
-            for (size_t i = 0; i < ((__bridge id<MTLBuffer>)shader->fragBuffer).length; i++){
+        /*if(useDefShader){
+            uint8_t* fragPtr = (uint8_t*)((__bridge id<MTLBuffer>)shader->vertBuffer).contents;
+            for (size_t i = 0; i < ((__bridge id<MTLBuffer>)shader->vertBuffer).length; i++){
                 printf("%02X ",fragPtr[i]);
                 if((i+1)%16==0)printf("\n");
             }
@@ -493,13 +470,11 @@ struct controller{
         [self.commandEncoder setVertexBuffer:self.normalBuffer offset:0 atIndex:1];
         [self.commandEncoder setVertexBuffer:self.uvBuffer offset:0 atIndex:2];
         
-        if(useDefShader){
-            [self.commandEncoder setVertexBytes:self.model length:sizeof(float) * 16 atIndex:3];
-            [self.commandEncoder setVertexBytes:self.view length:sizeof(float) * 16 atIndex:4];
-            [self.commandEncoder setVertexBytes:self.projection length:sizeof(float) * 16 atIndex:5];
-            [self.commandEncoder setVertexBytes:&self.pos[0] length:sizeof(float) * 3 atIndex:6];
-        }
         [self.commandEncoder setFragmentBuffer:(__bridge id<MTLBuffer>)shader->fragBuffer offset:0 atIndex:0];
+        //[self.commandEncoder setFragmentBytes:[(__bridge id<MTLBuffer>)shader->fragBuffer contents] length:[(__bridge id<MTLBuffer>)shader->fragBuffer length] atIndex:0];
+        //use this if you wanna switch inbetween idk
+        [self.commandEncoder setVertexBytes:[(__bridge id<MTLBuffer>)shader->vertBuffer contents] length:[(__bridge id<MTLBuffer>)shader->vertBuffer length] atIndex:3];
+
         for(int i=0;i<texture.size();i++){
             [self.commandEncoder setFragmentTexture:texture[i] atIndex:i];
             [self.commandEncoder setFragmentSamplerState:sampler[i] atIndex:i];
@@ -617,10 +592,6 @@ struct controller{
         }
         [self.controllers removeAllObjects];
         hid_exit();
-
-        free(self.model);
-        free(self.view);
-        free(self.projection);
     }
 
     - (BOOL)isRunning {
@@ -675,16 +646,6 @@ struct controller{
     - (void)setUvs:(id<MTLBuffer>)uvs count:(NSUInteger)count {
         self.uvBuffer = uvs;
         self.uvCount = count;
-    }
-    - (void)setModelMatrix:(const float*)matrix {
-        memcpy(self.model, matrix, sizeof(float) * 16);
-    }
-    - (void)setViewMatrix:(const float*)matrix pos:(glm::vec3)pos {
-        memcpy(self.view, matrix, sizeof(float) * 16);
-        self.pos = pos;
-    }
-    - (void)setProjectionMatrix:(const float*)matrix {
-        memcpy(self.projection, matrix, sizeof(float) * 16);
     }
     //idk at what point it went from pos amb dif spec const lin quad to pos const lin quad amb dif spec but whatever
     - (simd::float3)glmtosimd3:(glm::vec3)v3{return simd::float3{v3.x,v3.y,v3.z};}
@@ -931,6 +892,52 @@ struct controller{
         return self.rTSampler;
     }
 
+
+    - (void) enableVSync:(bool)enabled{
+        self.metalLayer.displaySyncEnabled = enabled?YES:NO;
+    }
+
+    - (void) enableDepthTesting:(bool)enabled{
+        self.depthStencilState = enabled?self.yesDepthStencilState:self.noDepthStencilState;
+    }
+
+    - (void) hideTitle:(bool)enabled{
+        if(enabled){
+            NSWindowStyleMask mask = [self.window styleMask];
+            mask |= NSWindowStyleMaskFullSizeContentView;
+            [self.window setStyleMask:mask];
+
+            [self.window setTitleVisibility:NSWindowTitleHidden];
+            [self.window setTitlebarAppearsTransparent:YES];
+        }else{
+            NSWindowStyleMask mask = [self.window styleMask];
+            mask |= NSWindowStyleMaskTitled;
+            [self.window setStyleMask:mask];
+
+            [self.window setTitleVisibility:NSWindowTitleVisible];
+            [self.window setTitlebarAppearsTransparent:NO];
+        }
+    }
+
+    - (void) hideBar:(bool)enabled{
+        if(enabled){
+            NSWindowStyleMask mask = [self.window styleMask];
+            mask &= ~NSWindowStyleMaskTitled;
+            mask |= NSWindowStyleMaskFullSizeContentView;
+
+            [self.window setStyleMask:mask];
+            [self.window setTitleVisibility:NSWindowTitleHidden];
+            [self.window setTitlebarAppearsTransparent:YES];
+        }else{
+            NSWindowStyleMask mask = [self.window styleMask];
+            mask |= NSWindowStyleMaskTitled;
+            [self.window setStyleMask:mask];
+
+            [self.window setTitleVisibility:NSWindowTitleVisible];
+            [self.window setTitlebarAppearsTransparent:NO];
+        }
+    }
+
 @end
 
 // #### MAIN ####
@@ -1170,28 +1177,6 @@ struct controller{
         @autoreleasepool {
             MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
             [renderer setUvs:(__bridge id<MTLBuffer>)uvs.getBuffer() count:uvs.size() * 2];
-        }
-    }
-
-
-    void Bento::setModelMatrix(const glm::mat4 m) {
-        @autoreleasepool {
-            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setModelMatrix:(float*)&m];
-        }
-    }
-
-    void Bento::setViewMatrix(const glm::mat4 v,const glm::vec3 p) {
-        @autoreleasepool {
-            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setViewMatrix:(float*)&v pos:p];
-        }
-    }
-
-    void Bento::setProjectionMatrix(const glm::mat4 p) {
-        @autoreleasepool {
-            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setProjectionMatrix:(float*)&p];
         }
     }
 
@@ -1512,46 +1497,74 @@ struct controller{
     void Bento::setUniform(std::string uniformName, glm::vec3 value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value) name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, glm::vec4 value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, float value, bool onvertex){
         @autoreleasepool {
             float v = static_cast<float>(value);
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:&v name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:&v name:uniformName];
+            }else{
+                [renderer setUniform:&v name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, int value, bool onvertex){
         @autoreleasepool {
             int v = static_cast<int>(value);
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniformInt:&v name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniformInt:&v name:uniformName];
+            }else{
+                [renderer setUniformInt:&v name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, glm::vec2 value, bool onvertex){
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, glm::mat4 value, bool onvertex){
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, std::vector<glm::vec4>& value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value[0]) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value[0]) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value[0]) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, std::vector<glm::vec3>& value, bool onvertex) {
@@ -1561,7 +1574,11 @@ struct controller{
                 paddedValue[i] = glm::vec4(value[i],0.0);
             }
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }
         }
 
     }
@@ -1572,34 +1589,54 @@ struct controller{
                 paddedValue[i] = glm::vec4(value[i],0.0,0.0,0.0);
             }
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, std::vector<int>& value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniformInt:value.data() name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniformInt:value.data() name:uniformName];
+            }else{
+                [renderer setUniformInt:value.data() name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, std::vector<glm::vec2>& value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value[0]) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value[0]) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value[0]) name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, std::vector<glm::mat4>& value, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(value[0]) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(value[0]) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(value[0]) name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, glm::vec4* value, int count, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*value) name:uniformName];
+            }
         }
     }
     void Bento::setUniform(std::string uniformName, glm::vec3* value, int count, bool onvertex) {
@@ -1609,7 +1646,11 @@ struct controller{
                 paddedValue[i] = glm::vec4(value[i],0.0);
             }
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }
         }
 
     }
@@ -1620,28 +1661,44 @@ struct controller{
                 paddedValue[i] = glm::vec4(value[i],0.0,0.0,0.0);
             }
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*paddedValue) name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, int* value, int count, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniformInt:value name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniformInt:value name:uniformName];
+            }else{
+                [renderer setUniformInt:value name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, glm::vec2* value, int count, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*value) name:uniformName];
+            }
         }
     }
 
     void Bento::setUniform(std::string uniformName, glm::mat4* value, int count, bool onvertex) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            [renderer setUniform:glm::value_ptr(*value) name:uniformName onvertex:onvertex];
+            if(onvertex){
+                [renderer setVertexUniform:glm::value_ptr(*value) name:uniformName];
+            }else{
+                [renderer setUniform:glm::value_ptr(*value) name:uniformName];
+            }
         }
     }
 
@@ -1675,13 +1732,15 @@ struct controller{
                     fragDir = fragPath.substr(0, lastSlash);
                     fragFilename = fragPath.substr(lastSlash, fragPath.rfind('.') - lastSlash);
                 }
-                system(("glslangValidator -V --quiet " + vertPath + " -o "+vertDir+vertFilename+".vert.spv").c_str());
-                system(("glslangValidator -V --quiet " + fragPath + " -o "+fragDir+fragFilename+".frag.spv").c_str());
-                system(("spirv-cross "+vertDir+vertFilename+".vert.spv --msl --output " +vertDir+"/cache"+vertFilename + ".vsmetal").c_str());
-                system(("spirv-cross "+fragDir+fragFilename+".frag.spv --msl --output " +fragDir+"/cache"+fragFilename + ".fsmetal").c_str());
-                system(("./bento/shaders/bindfix "+vertPath+" "+vertDir+"/cache"+vertFilename+".vsmetal ").c_str());
-                system(("rm "+vertDir+vertFilename+".vert.spv "+fragDir+fragFilename+".frag.spv").c_str());
-                std::cout << " to "+vertDir+"/cache"+vertFilename+".vsmetal and "+fragDir+"/cache"+fragFilename+".fsmetal\n";
+                #ifdef CONVERT // you need glslangvalidator and spirv-cross
+                    system(("glslangValidator -V --quiet " + vertPath + " -o "+vertDir+vertFilename+".vert.spv").c_str());
+                    system(("glslangValidator -V --quiet " + fragPath + " -o "+fragDir+fragFilename+".frag.spv").c_str());
+                    system(("spirv-cross "+vertDir+vertFilename+".vert.spv --msl --output " +vertDir+"/cache"+vertFilename + ".vsmetal").c_str());
+                    system(("spirv-cross "+fragDir+fragFilename+".frag.spv --msl --output " +fragDir+"/cache"+fragFilename + ".fsmetal").c_str());
+                    system(("./bento/shaders/bindfix "+vertPath+" "+vertDir+"/cache"+vertFilename+".vsmetal ").c_str());
+                    system(("rm "+vertDir+vertFilename+".vert.spv "+fragDir+fragFilename+".frag.spv").c_str());
+                    std::cout << " to "+vertDir+"/cache"+vertFilename+".vsmetal and "+fragDir+"/cache"+fragFilename+".fsmetal\n";
+                #endif
 
                 NSString *vertMetalPath = [NSString stringWithUTF8String:(vertDir+"/cache"+vertFilename+".vsmetal").c_str()];
                 NSString *fragMetalPath = [NSString stringWithUTF8String:(fragDir+"/cache"+fragFilename+".fsmetal").c_str()];
@@ -1745,7 +1804,17 @@ struct controller{
                 }
                 pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatR32Float;
                 
-                for(int i = 0; i <= highest; i++)pipelineDescriptor.colorAttachments[i+1].pixelFormat = MTLPixelFormatRGBA32Float;
+                for(int i = 0; i <= highest; i++){
+                    pipelineDescriptor.colorAttachments[i+1].pixelFormat = MTLPixelFormatRGBA32Float;
+                    pipelineDescriptor.colorAttachments[i+1].blendingEnabled = YES;
+                    pipelineDescriptor.colorAttachments[i+1].rgbBlendOperation = MTLBlendOperationAdd;
+                    pipelineDescriptor.colorAttachments[i+1].alphaBlendOperation = MTLBlendOperationAdd;
+                    pipelineDescriptor.colorAttachments[i+1].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+                    pipelineDescriptor.colorAttachments[i+1].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+                    pipelineDescriptor.colorAttachments[i+1].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+                    pipelineDescriptor.colorAttachments[i+1].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+
+                }
 
                 pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
                 pipelineDescriptor.vertexDescriptor = vertexDescriptor;
@@ -1785,12 +1854,16 @@ struct controller{
                         if(type=="int")typeSize=sizeof(int);
                         else if(type=="float")typeSize=sizeof(float);
                         else if(type=="float2")typeSize=sizeof(float)*2;
-                        else if(type=="float3")typeSize=sizeof(float)*3;
+                        else if(type=="float3")typeSize=sizeof(float)*4;
                         else if(type=="float4")typeSize=sizeof(float)*4;
-                        else if(type=="mat4")typeSize=sizeof(float)*16;
+                        else if(type=="packed_float")typeSize=sizeof(float);
+                        else if(type=="packed_float2")typeSize=sizeof(float)*2;
+                        else if(type=="packed_float3")typeSize=sizeof(float)*3;
+                        else if(type=="packed_float4")typeSize=sizeof(float)*4;
+                        else if(type=="float4x4")typeSize=sizeof(float)*16;
                         else if(type=="double")typeSize=sizeof(double);
-                        else if(type=="double2")typeSize=sizeof(double)*2;
-                        else if(type=="double3")typeSize=sizeof(double)*3;
+                        else if(type=="double2")typeSize=sizeof(double)*4;
+                        else if(type=="double3")typeSize=sizeof(double)*4;
                         else if(type=="double4")typeSize=sizeof(double)*4;
                         int arrayCount = 1;
                         if (!arraySize.empty()) {
@@ -1800,8 +1873,9 @@ struct controller{
                                 arrayCount = std::stoi(arraySizeMatch[1].str());
                             }
                         }
-                        currentOffset += typeSize * arrayCount;
                         uniformMapVert[name] = currentOffset;
+                        currentOffset += typeSize * arrayCount;
+                        sizeMapVert[name] = typeSize * arrayCount;
                         totalSize += typeSize * arrayCount;
                     }
                 }
@@ -1826,7 +1900,7 @@ struct controller{
                         else if(type=="packed_float2")typeSize=sizeof(float)*2;
                         else if(type=="packed_float3")typeSize=sizeof(float)*3;
                         else if(type=="packed_float4")typeSize=sizeof(float)*4;
-                        else if(type=="mat4")typeSize=sizeof(float)*16;
+                        else if(type=="float4x4")typeSize=sizeof(float)*16;
                         else if(type=="double")typeSize=sizeof(double);
                         else if(type=="double2")typeSize=sizeof(double)*4;
                         else if(type=="double3")typeSize=sizeof(double)*4;
@@ -1863,4 +1937,16 @@ struct controller{
         sizeMapVert = impl->sizeMapVert;
         uniformMapFrag = impl->uniformMapFrag;
         sizeMapFrag = impl->sizeMapFrag;
+    }
+
+    void Bento::enable(Feature f, bool enabled){
+        @autoreleasepool {
+            MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
+            switch(f){
+                case 0:[renderer enableVSync:enabled];break;
+                case 1:[renderer enableDepthTesting:enabled];break;
+                case 2:[renderer hideTitle:enabled];break;
+                case 3:[renderer hideBar:enabled];break;
+            }
+        }
     }

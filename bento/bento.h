@@ -56,11 +56,11 @@ private:
 
 class Object{
 public:
-    Object(const char *n, glm::mat4 t, Mesh m, Texture* tex):mesh(m),texture(tex){
+    Object(const char *n, glm::mat4 t, Mesh* m, Texture* tex):mesh(m),texture(tex){
         name = n;
         transformation = t;
     }
-    Object(const char *n, glm::mat4 t, Mesh m):mesh(m),texture(nullptr){
+    Object(const char *n, glm::mat4 t, Mesh* m):mesh(m),texture(nullptr){
         name = n;
         transformation = t;
     }
@@ -68,11 +68,11 @@ public:
         name = n;
         transformation = t;
     }
-    Object(const char *n, glm::mat4 t, const char *meshPath, const char *texPath):mesh(Mesh(meshPath)),texture(new Texture(texPath)){
+    Object(const char *n, glm::mat4 t, const char *meshPath, const char *texPath):mesh(new Mesh(meshPath)),texture(new Texture(texPath)){
         name = n;
         transformation = t;
     }
-    Object(const char *n, glm::mat4 t, const char *meshPath):mesh(Mesh(meshPath)),texture(nullptr){
+    Object(const char *n, glm::mat4 t, const char *meshPath):mesh(new Mesh(meshPath)),texture(nullptr){
         name = n;
         transformation = t;
     }
@@ -80,10 +80,10 @@ public:
 
     }
     void draw(Bento *bento){
-        bento->setVertices(mesh.getVertexBuffer());
-        bento->setNormals(mesh.getNormalBuffer());
-        bento->setUvs(mesh.getUVBuffer());
-        bento->setModelMatrix(transformation);
+        bento->setVertices(mesh->getVertexBuffer());
+        bento->setNormals(mesh->getNormalBuffer());
+        bento->setUvs(mesh->getUVBuffer());
+        bento->setUniform("model",transformation,true);
         if(texture){
             bento->bindTexture(texture,0);
         }
@@ -91,23 +91,23 @@ public:
         bento->draw();
     }
     void drawTex(Bento *bento){
-        bento->setVertices(mesh.getVertexBuffer());
-        bento->setNormals(mesh.getNormalBuffer());
-        bento->setUvs(mesh.getUVBuffer());
-        bento->setModelMatrix(transformation);
+        bento->setVertices(mesh->getVertexBuffer());
+        bento->setNormals(mesh->getNormalBuffer());
+        bento->setUvs(mesh->getUVBuffer());
+        bento->setUniform("model",transformation,true);
         if(texture){
             bento->bindTexture(texture,0);
         }
 
         bento->drawTex();
     }
-    const Mesh& getMesh() const { return mesh; }
+    const Mesh* getMesh() const { return mesh; }
     const Texture* getTexture() const { return texture; }
 
     glm::mat4 transformation;
 private:
     std::string name;
-    Mesh mesh;
+    Mesh* mesh;
     Texture* texture;
 };
 

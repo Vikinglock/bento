@@ -14,6 +14,8 @@
 #include "../lib/glm/gtc/type_ptr.hpp"
 #include "metaltexture.h"
 
+#include "../features.h"
+
 
 #include "../lib/imgui/imgui.h"
 #include "../lib/imgui/backends/imgui_impl_metal.h"
@@ -276,7 +278,7 @@ public:
         std::regex structRegex(R"(struct\s+Uniforms\s*\{([^}]*)\};)");
         std::regex uniformRegex(R"(\s*(\w+)\s+(\w+)(\[\d+\])?;)");
         std::smatch structMatch;
-        if (std::regex_search(vS, structMatch, structRegex)) {
+        if (std::regex_search(vertSource, structMatch, structRegex)) {
             std::string structBody = structMatch[1].str();
             std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
             std::sregex_iterator end;
@@ -288,12 +290,16 @@ public:
                 if(type=="int")typeSize=sizeof(int);
                 else if(type=="float")typeSize=sizeof(float);
                 else if(type=="float2")typeSize=sizeof(float)*2;
-                else if(type=="float3")typeSize=sizeof(float)*3;
+                else if(type=="float3")typeSize=sizeof(float)*4;
                 else if(type=="float4")typeSize=sizeof(float)*4;
-                else if(type=="mat4")typeSize=sizeof(float)*16;
+                else if(type=="packed_float")typeSize=sizeof(float);
+                else if(type=="packed_float2")typeSize=sizeof(float)*2;
+                else if(type=="packed_float3")typeSize=sizeof(float)*3;
+                else if(type=="packed_float4")typeSize=sizeof(float)*4;
+                else if(type=="float4x4")typeSize=sizeof(float)*16;
                 else if(type=="double")typeSize=sizeof(double);
-                else if(type=="double2")typeSize=sizeof(double)*2;
-                else if(type=="double3")typeSize=sizeof(double)*3;
+                else if(type=="double2")typeSize=sizeof(double)*4;
+                else if(type=="double3")typeSize=sizeof(double)*4;
                 else if(type=="double4")typeSize=sizeof(double)*4;
                 int arrayCount = 1;
                 if (!arraySize.empty()) {
@@ -303,15 +309,17 @@ public:
                         arrayCount = std::stoi(arraySizeMatch[1].str());
                     }
                 }
-                currentOffset += typeSize * arrayCount;
                 uniformMapVert[name] = currentOffset;
+                currentOffset += typeSize * arrayCount;
+                sizeMapVert[name] = typeSize * arrayCount;
                 totalSize += typeSize * arrayCount;
             }
         }
         vertBuffer = [device newBufferWithLength:totalSize options:MTLResourceStorageModeShared];
         currentOffset = 0;
         totalSize = 0;
-        if (std::regex_search(fS, structMatch, structRegex)) {
+        
+        if (std::regex_search(fragSource, structMatch, structRegex)) {
             std::string structBody = structMatch[1].str();
             std::sregex_iterator begin(structBody.begin(), structBody.end(), uniformRegex);
             std::sregex_iterator end;
@@ -320,12 +328,16 @@ public:
                 std::string name = (*it)[2].str();
                 std::string arraySize = (*it)[3].str();
                 int typeSize = 0;
-                if(type=="int")typeSize=sizeof(int)*4;
+                if(type=="int")typeSize=sizeof(int);
                 else if(type=="float")typeSize=sizeof(float);
-                else if(type=="float2")typeSize=sizeof(float)*4;
+                else if(type=="float2")typeSize=sizeof(float)*2;
                 else if(type=="float3")typeSize=sizeof(float)*4;
                 else if(type=="float4")typeSize=sizeof(float)*4;
-                else if(type=="mat4")typeSize=sizeof(float)*16;
+                else if(type=="packed_float")typeSize=sizeof(float);
+                else if(type=="packed_float2")typeSize=sizeof(float)*2;
+                else if(type=="packed_float3")typeSize=sizeof(float)*3;
+                else if(type=="packed_float4")typeSize=sizeof(float)*4;
+                else if(type=="float4x4")typeSize=sizeof(float)*16;
                 else if(type=="double")typeSize=sizeof(double);
                 else if(type=="double2")typeSize=sizeof(double)*4;
                 else if(type=="double3")typeSize=sizeof(double)*4;
@@ -408,6 +420,7 @@ public:
     void renderToTex(Texture*& tex1, Texture*& tex2,int ind);
     void renderToTex(Texture*& tex1, Texture*& tex2, Texture*& tex3,int ind);
     void setShader(Shader* shader);
+    void enable(Feature f,bool enabled = true);
 
     void normalizeTexture(int index, bool normalized);
 

@@ -23,3 +23,5 @@ rm glad.o
 
 
 ./"$OUTPUT"
+
+#i'll fix this when i get back to testing on linux
