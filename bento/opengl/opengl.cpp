@@ -254,6 +254,8 @@ void Bento::unbindTexture() {
 }
 
 void Bento::predraw() {
+    for(int i = GLFW_KEY_SPACE; i <= GLFW_KEY_LAST; ++i)prevKeyStates[i] = getKey(i);
+    for(int i = GLFW_MOUSE_BUTTON_1; i <= GLFW_MOUSE_BUTTON_LAST; ++i)prevMouseStates[i] = getMouse(i);
     glfwPollEvents();
     glClearColor(clearColor.x,clearColor.y,clearColor.z,clearColor.w);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -446,6 +448,26 @@ bool Bento::getKey(int key) {
 bool Bento::getMouse(int mouse) {
     return glfwGetMouseButton(window, mouse) == GLFW_PRESS;
 }
+bool Bento::getKeyDown(int key) {
+    bool curr = getKey(key);
+    bool prev = prevKeyStates[key];
+    return curr && !prev;
+}
+bool Bento::getKeyUp(int key) {
+    bool curr = getKey(key);
+    bool prev = prevKeyStates[key];
+    return !curr && prev;
+}
+bool Bento::getMouseDown(int button) {
+    bool curr = getMouse(button);
+    bool prev = prevMouseStates[button];
+    return curr && !prev;
+}
+bool Bento::getMouseUp(int button) {
+    bool curr = getMouse(button);
+    bool prev = prevMouseStates[button];
+    return !curr && prev;
+}
 
 
 double Bento::getScroll(int wheel){
@@ -567,31 +589,6 @@ void Bento::imguiNewFrame() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
 }
-
-
-    
-void Bento::addLight(const glm::vec3 pos,const glm::vec3 ambient,const glm::vec3 diffuse,const glm::vec3 specular,float constant,float linear,float quadratic) {
-    if (numLights >= MAX_LIGHTS) return;
-
-    positions[numLights] = pos;
-    constants[numLights] = constant;
-    linears[numLights] = linear;
-    quads[numLights] = quadratic;
-    ambients[numLights] = ambient;
-    diffuses[numLights] = diffuse;
-    speculars[numLights] = specular;
-
-    numLights++;
-}
-
-void Bento::setLightPos(int index, glm::vec3 position){positions[index] = position;}
-void Bento::setLightConstants(int index, float constant){constants[index] = constant;}
-void Bento::setLightLinears(int index, float linear){linears[index] = linear;}
-void Bento::setLightQuads(int index, float quad){quads[index] = quad;}
-void Bento::setLightAmbients(int index, glm::vec3 ambient){ambients[index] = ambient;}
-void Bento::setLightDiffuses(int index, glm::vec3 diffuse){diffuses[index] = diffuse;}
-void Bento::setLightSpeculars(int index, glm::vec3 specular){speculars[index] = specular;}
-
 
 void Bento::setAmbientColor(glm::vec3 ambient){amb = ambient;}
 

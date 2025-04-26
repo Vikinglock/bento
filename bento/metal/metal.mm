@@ -67,6 +67,8 @@ struct controller{
 @property (nonatomic, strong) id<MTLTexture> appTexture;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *keyStates;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *mouseStates;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *prevKeyStates;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *prevMouseStates;
 @property (nonatomic, strong) id<CAMetalDrawable> drawable;
 @property (nonatomic, strong) id<MTLCommandBuffer> commandBuffer;
 @property (nonatomic, strong) id<MTLRenderCommandEncoder> commandEncoder;
@@ -141,6 +143,8 @@ struct controller{
 
         self.keyStates = [NSMutableDictionary dictionary];
         self.mouseStates = [NSMutableDictionary dictionary];
+        self.prevKeyStates = [NSMutableDictionary dictionary];
+        self.prevMouseStates = [NSMutableDictionary dictionary];
         self.metalLayer = [CAMetalLayer layer];
         self.metalLayer.device = self.device;
         self.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -376,6 +380,9 @@ struct controller{
         [blitEncoder endEncoding];
         [self.commandBuffer presentDrawable:self.drawable];
         [self.commandBuffer commit];
+
+        [self.prevKeyStates setDictionary:self.keyStates];
+        [self.prevMouseStates setDictionary:self.mouseStates];
 
         self.wheelY = 0;
         self.wheelX = 0;
@@ -653,6 +660,7 @@ struct controller{
 // #### INPUT ####
     - (void)updateInput:(NSEvent *)event {
         if (event.type == NSEventTypeKeyDown || event.type == NSEventTypeKeyUp) {
+            self.prevKeyStates[@(event.keyCode)] = self.keyStates[@(event.keyCode)] ?: @(NO);
             self.keyStates[@(event.keyCode)] = (event.type == NSEventTypeKeyDown)?@(YES):@(NO);
         }
         //command  0x10
@@ -673,12 +681,15 @@ struct controller{
 
         if (NSPointInRect([event locationInWindow], [self.window contentView].frame) || (event.type == NSEventTypeLeftMouseUp || event.type == NSEventTypeRightMouseUp || event.type == NSEventTypeOtherMouseUp)) {
             if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeLeftMouseUp) {
+                self.prevMouseStates[@(0)] = self.mouseStates[@(0)] ?: @(0);
                 self.mouseStates[@(0)] = @(event.type == NSEventTypeLeftMouseDown ? 1 : 0);
             } 
             else if (event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeRightMouseUp) {
+                self.prevMouseStates[@(0)] = self.mouseStates[@(0)] ?: @(0);
                 self.mouseStates[@(1)] = @(event.type == NSEventTypeRightMouseDown ? 1 : 0);
             }
             else if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp) {
+                self.prevMouseStates[@(0)] = self.mouseStates[@(0)] ?: @(0);
                 self.mouseStates[@(event.buttonNumber)] = @(event.type == NSEventTypeOtherMouseDown ? 1 : 0);
             }
         }
@@ -1210,17 +1221,35 @@ struct controller{
     bool Bento::getMouse(int mouse) {
         @autoreleasepool {
             MetalRendererObjC* renderer = (__bridge MetalRendererObjC*)this->rendererObjC;
-            NSNumber* mouseStateNumber = renderer.mouseStates[@(mouse)];
-            
-            switch ([mouseStateNumber integerValue]) {
-                case 1:
-                    return true;
-                case 0:
-                    return false;
-                default:
-                    break;
-            }
-            return false;
+            return ([renderer.mouseStates[@(mouse)] integerValue]==1);
+        }
+    }
+
+    bool Bento::getKeyDown(int key) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return ([renderer.keyStates[@(key)] integerValue] == 1 && [renderer.prevKeyStates[@(key)] integerValue]==0);
+        }
+    }
+
+    bool Bento::getKeyUp(int key) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return ([renderer.keyStates[@(key)] integerValue] == 0 && [renderer.prevKeyStates[@(key)] integerValue] == 1);
+        }
+    }
+
+    bool Bento::getMouseDown(int button) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return ([renderer.mouseStates[@(button)] integerValue] == 1 && [renderer.prevMouseStates[@(button)] integerValue] == 0);
+        }
+    }
+
+    bool Bento::getMouseUp(int button) {
+        @autoreleasepool {
+            MetalRendererObjC *renderer = (__bridge MetalRendererObjC *)this->rendererObjC;
+            return ([renderer.mouseStates[@(button)] integerValue] == 0 && [renderer.prevMouseStates[@(button)] integerValue] == 1);
         }
     }
 

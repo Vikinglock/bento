@@ -88,7 +88,7 @@ int main() {
     Shader* screenShader = new Shader("./resources/shaders/screen.vert","./resources/shaders/screen.frag");
     Shader* thresholdShader = new Shader("./resources/shaders/threshold.vert","./resources/shaders/threshold.frag");
     Shader* boxBlurShader = new Shader("./resources/shaders/blur.vert","./resources/shaders/blur.frag");
-    Shader* combineShader = new Shader("./resources/shaders/combine.vert","./resources/shaders/combine.frag");    
+    Shader* combineShader = new Shader("./resources/shaders/combine.vert","./resources/shaders/combine.frag");
 
 
     bento->setClearColor(glm::vec4(142.0/255.0,169.0/255.0,168.0/255.0,1));

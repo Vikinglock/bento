@@ -1,8 +1,6 @@
 #ifndef OPENGL_H
 #define OPENGL_H
 
-#define MAX_LIGHTS 50
-
 #include <iostream>
 #include "../lib/imgui/imgui.h"
 #include "../lib/imgui/backends/imgui_impl_glfw.h"
@@ -211,6 +209,10 @@ public:
     void focus();
     bool getKey(int key);
     bool getMouse(int mouse);
+    bool getKeyUp(int key);
+    bool getKeyDown(int key);
+    bool getMouseUp(int mouse);
+    bool getMouseDown(int mouse);
     double getScroll(int wheel);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
@@ -300,15 +302,10 @@ public:
     Shader* shader;//no, no it is not.
 
 private:
-    int numLights;
     int startAtt, endAtt, startRT, endRT, dTInd;
-    glm::vec3 positions[MAX_LIGHTS];
-    float constants[MAX_LIGHTS];
-    float linears[MAX_LIGHTS];
-    float quads[MAX_LIGHTS];
-    glm::vec3 ambients[MAX_LIGHTS];
-    glm::vec3 diffuses[MAX_LIGHTS];
-    glm::vec3 speculars[MAX_LIGHTS];
+
+    std::unordered_map<int, bool> prevKeyStates;
+    std::unordered_map<int, bool> prevMouseStates;
 
     GLuint vao, vertexBuffer, normalBuffer, uvBuffer;//, ubo, uboIndex; me when macos (they just don't work idk why)
                                                              // i'll redo it as soon as they make windows more fun to work on (or i guess i could just use linux)

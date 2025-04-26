@@ -397,6 +397,10 @@ public:
     void focus();
     bool getKey(int key);
     bool getMouse(int mouse);
+    bool getKeyUp(int key);
+    bool getKeyDown(int key);
+    bool getMouseUp(int mouse);
+    bool getMouseDown(int mouse);
     double getScroll(int wheel);
     void setMouseCursor(bool hide, int cursor);
     void setMousePosition(glm::vec2 pos, bool needsFocus = false);
